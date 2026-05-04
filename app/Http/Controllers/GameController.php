@@ -115,26 +115,6 @@ class GameController extends Controller
             ];
         });
 
-        $carta = $juego->current_carta_id ? \App\Models\Carta::find($juego->current_carta_id) : null;
-        $challengeData = null;
-        if ($carta) {
-            $pregunta = $carta->preguntas->first();
-            $challengeData = [
-                'id' => $carta->carta_id,
-                'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
-                'title' => $pregunta ? $pregunta->texto : $carta->texto,
-                'description' => $pregunta ? '' : $carta->texto,
-                'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
-                'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
-                'time' => $carta->tiempo ?? 20,
-                'puntos' => $carta->puntos,
-                'penalizacion' => $carta->penalizacion,
-            ];
-            
-            $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
-            $challengeData['activeSectorId'] = $activeRol ? $activeRol->slug : null;
-        }
-
         return response()->json([
             'status' => 'ok', 
             'turn' => $juego->current_turn,
@@ -142,10 +122,37 @@ class GameController extends Controller
                 'state' => $juego->estado === 'playing' ? 'challenge' : $juego->estado,
                 'turnNumber' => $juego->current_turn,
                 'sectors' => $sectors,
-                'challenge' => $challengeData,
+                'challenge' => $this->getChallengeData($juego),
                 'temperature' => $juego->temperatura
             ]
         ]);
+    }
+
+    /**
+     * Obtiene los datos formateados del reto actual para un juego.
+     */
+    private function getChallengeData(Juego $juego): ?array
+    {
+        $carta = $juego->current_carta_id ? \App\Models\Carta::find($juego->current_carta_id) : null;
+        if (!$carta) return null;
+
+        $pregunta = $carta->preguntas->first();
+        $challengeData = [
+            'id' => $carta->carta_id,
+            'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
+            'title' => $pregunta ? $pregunta->texto : $carta->texto,
+            'description' => $pregunta ? '' : $carta->texto,
+            'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
+            'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
+            'time' => $carta->tiempo ?? 20,
+            'puntos' => $carta->puntos,
+            'penalizacion' => $carta->penalizacion,
+        ];
+        
+        $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
+        $challengeData['activeSectorId'] = $activeRol ? $activeRol->slug : null;
+
+        return $challengeData;
     }
 
     /**
@@ -170,10 +177,11 @@ class GameController extends Controller
         });
 
         return response()->json([
-            'state' => $juego->estado,
+            'state' => $juego->estado === 'playing' ? 'challenge' : $juego->estado,
             'turnNumber' => $juego->current_turn,
             'sectors' => $sectors,
-            'challenge' => $juego->current_carta_id ? \App\Models\Carta::find($juego->current_carta_id) : null,
+            'challenge' => $this->getChallengeData($juego),
+            'temperature' => $juego->temperature ?? 0,
         ]);
     }
 }
