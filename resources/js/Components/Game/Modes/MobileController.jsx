@@ -91,7 +91,7 @@ export default function MobileController({
     const [currentChallenge, setCurrentChallenge] = useState(challenge);
 
     // ── WebSocket: Conectar al canal de la sala ───────────────────────────────
-    const { isConnected, gameState: serverGameState, sendVote, sendProposal } = useGameChannel(
+    const { isConnected, gameState: serverGameState, sendVote, sendProposal, proposal } = useGameChannel(
         roomCode,
         primaryRole?.id, // ID por defecto
         playerName,
@@ -102,13 +102,27 @@ export default function MobileController({
     React.useEffect(() => {
         if (!serverGameState) return;
         setLocalGameState(serverGameState.state);
-        if (serverGameState.challenge && Object.keys(serverGameState.challenge).length > 0) {
+        if (serverGameState.challenge && typeof serverGameState.challenge === 'object' && Object.keys(serverGameState.challenge).length > 0) {
             setCurrentChallenge(serverGameState.challenge);
             setSelectedAnswer(null);
             setSliderValue(serverGameState.challenge.sliderDefault ?? 50);
             setProposalText('');
         }
     }, [serverGameState]);
+
+    // NUEVO: Cuando llega una propuesta de un compañero, cambiar a modo validación
+    React.useEffect(() => {
+        if (proposal && localGameState !== 'voted') {
+            setCurrentChallenge(prev => ({
+                ...prev,
+                type: 'validate',
+                proposal: proposal.text,
+                proposerName: proposal.playerName,
+                proposerSectorId: proposal.sectorId
+            }));
+            setSelectedAnswer(null);
+        }
+    }, [proposal]);
     // ───────────────────────────────────────────────────────────────
 
     const challengeType = currentChallenge.type ?? 'options';
@@ -135,11 +149,17 @@ export default function MobileController({
 
     // ── Contenido del Área Principal según tipo de reto ──
     const renderChallengeContent = () => {
-        // Verificar si es nuestro turno (o si no hay un sector activo definido, en cuyo caso todos pueden votar)
-        const activeSectorId = currentChallenge.activeSectorId;
+        const safeChallenge = currentChallenge || {};
+        const challengeType = safeChallenge.type ?? 'options';
+
+        // Verificar si es nuestro turno
+        const activeSectorId = safeChallenge.activeSectorId;
         const isMyTurn = !activeSectorId || safeRoles.some(r => r.id === activeSectorId);
 
-        if (!isMyTurn) {
+        // Si estamos en modo validación, ¡TODOS pueden votar! (excepto el que propuso, que ya está en 'voted')
+        const canVoteNow = challengeType === 'validate' || isMyTurn;
+
+        if (!canVoteNow && localGameState !== 'voted') {
             return (
                 <motion.div
                     key="waiting-turn"
@@ -222,10 +242,10 @@ export default function MobileController({
             );
         }
 
-        // gameState === 'challenge'
+        // gameState === 'challenge' o 'playing'
         return (
             <motion.div
-                key={`challenge-${challengeType}`}
+                key={`challenge-${challengeType}-${currentChallenge.id}`}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white border-4 border-[#e7e5e4] rounded-[2.5rem] p-5 shadow-[0_8px_0_0_#e7e5e4]"
@@ -234,11 +254,11 @@ export default function MobileController({
                 <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
                     <span className="text-[9px] font-black uppercase text-rose-500 tracking-widest">
-                        Desafío · Anillo del {currentChallenge.ring ?? 'Agua'}
+                        Desafío · Anillo del {safeChallenge.ring ?? 'Agua'}
                     </span>
                 </div>
                 <h2 className="text-lg font-black mb-1 text-[#1c1917] leading-tight">
-                    {currentChallenge.title ?? 'Reto sin nombre'}
+                    {safeChallenge.title ?? 'Reto sin nombre'}
                 </h2>
 
                 {/* ── Tipo OPCIONES ── */}
@@ -248,7 +268,7 @@ export default function MobileController({
                             Mira la pantalla para debatir la respuesta.
                         </p>
                         <div className="grid grid-cols-2 gap-3">
-                            {currentChallenge.options?.map((opt, i) => {
+                            {safeChallenge.options?.map((opt, i) => {
                                 const style = OPTION_STYLES[i];
                                 const isSelected = selectedAnswer === opt;
                                 return (
@@ -281,24 +301,27 @@ export default function MobileController({
                     </>
                 )}
 
-                {/* ── Tipo OPEN ── */}
-                {challengeType === 'open' && (
+                {/* ── Tipo FREE (Pregunta Abierta) (Auto-Evaluación / Consenso del grupo registrado por el sector activo) ── */}
+                {challengeType === 'free' && (
                     <>
-                        <p className="text-xs text-[#78716c] font-medium mb-4 leading-relaxed">
-                            {currentChallenge.description ?? 'Redacta tu propuesta para el grupo.'}
+                        <p className="text-xs text-[#78716c] font-medium mb-3 leading-relaxed">
+                            Evalúa la respuesta de tu sector
                         </p>
-                        <textarea
-                            className={`w-full h-28 border-2 border-[#e7e5e4] bg-[#f5f5f4] rounded-2xl p-3 text-sm font-medium outline-none resize-none text-[#1c1917] focus:border-slate-400 transition-all`}
-                            placeholder="Escribe tu propuesta aquí..."
-                            value={proposalText}
-                            onChange={(e) => setProposalText(e.target.value)}
-                        />
-                        <button
-                            onClick={handleProposal}
-                            className={`mt-3 w-full py-3 rounded-2xl font-black text-white flex items-center justify-center gap-2 active:scale-95 transition-all ${theme.btn}`}
-                        >
-                            <Send size={16} /> Enviar al Grupo
-                        </button>
+                        <p className="text-[9px] font-black text-[#a8a29e] uppercase tracking-widest text-center mb-3">
+                            Debate con el grupo y marca el resultado acordado.
+                        </p>
+                        <div className="space-y-2">
+                            {VALIDATE_OPTIONS.map(({ key, icon, label, active }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => handleVote(key)}
+                                    className={`w-full border-[3px] py-3 rounded-2xl flex items-center justify-center gap-3 font-black text-sm transition-all active:scale-95
+                                        ${selectedAnswer === key ? active : 'bg-white border-[#e7e5e4] text-[#78716c] hover:border-slate-300'}`}
+                                >
+                                    {icon} {label}
+                                </button>
+                            ))}
+                        </div>
                     </>
                 )}
 
@@ -306,26 +329,26 @@ export default function MobileController({
                 {challengeType === 'slider' && (
                     <>
                         <p className="text-xs text-[#78716c] font-medium mb-5 leading-relaxed">
-                            {currentChallenge.description ?? 'Ajusta el valor de tu decisión.'}
+                            {safeChallenge.description ?? 'Ajusta el valor de tu decisión.'}
                         </p>
                         <div className="text-center mb-5">
                             <span className={`text-5xl font-black tabular-nums ${theme.text}`}>
                                 {sliderValue}
                             </span>
-                            <span className={`text-lg font-black ${theme.text} ml-1`}>{challenge.unit ?? '%'}</span>
+                            <span className={`text-lg font-black ${theme.text} ml-1`}>{safeChallenge.unit ?? '%'}</span>
                         </div>
                         <input
                             type="range"
-                            min={currentChallenge.sliderMin ?? 0}
-                            max={currentChallenge.sliderMax ?? 100}
-                            step={currentChallenge.sliderStep ?? 5}
+                            min={safeChallenge.sliderMin ?? 0}
+                            max={safeChallenge.sliderMax ?? 100}
+                            step={safeChallenge.sliderStep ?? 5}
                             value={sliderValue}
                             onChange={(e) => setSliderValue(parseInt(e.target.value))}
                             className="w-full h-3 bg-[#e7e5e4] rounded-full appearance-none cursor-pointer mb-2"
                         />
                         <div className="flex justify-between text-[9px] font-black text-[#a8a29e] uppercase tracking-widest mb-4">
-                            <span>{currentChallenge.sliderMin ?? 0}</span>
-                            <span>{currentChallenge.sliderMax ?? 100}</span>
+                            <span>{safeChallenge.sliderMin ?? 0}</span>
+                            <span>{safeChallenge.sliderMax ?? 100}</span>
                         </div>
                         <button
                             onClick={() => handleVote(sliderValue)}
@@ -343,7 +366,12 @@ export default function MobileController({
                             Evalúa a tus compañeros
                         </p>
                         <div className="bg-[#f5f5f4] border-2 border-dashed border-[#d6d3d1] rounded-2xl p-4 mb-4 text-sm font-bold italic text-[#44403c] leading-relaxed">
-                            "{currentChallenge.proposal ?? 'El sector ha propuesto una medida...'}"
+                            "{safeChallenge.proposal ?? 'El sector ha propuesto una medida...'}"
+                            {safeChallenge.proposerName && (
+                                <div className="mt-2 text-right not-italic text-[10px] text-[#a8a29e] uppercase tracking-wider">
+                                    — Propuesta de {safeChallenge.proposerName}
+                                </div>
+                            )}
                         </div>
                         <p className="text-[9px] font-black text-[#a8a29e] uppercase tracking-widest text-center mb-3">
                             Debate con tu equipo. <br />Vota si su propuesta merece ganar los Eco-Tokens.
