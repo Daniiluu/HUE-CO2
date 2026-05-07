@@ -25,20 +25,35 @@ class JuegoController extends Controller
         $request->validate([
             'modo'       => 'required|string|max:50',
             'anillo_id'  => 'nullable|exists:anillos,anillo_id',
+            'usuario'    => 'required|string|max:50', // Nombre del host
         ]);
 
         $juego = Juego::create([
             'modo'        => $request->modo,
-            'max_players' => $request->max_players,
+            'max_players' => $request->max_players ?? 6,
             'temperatura' => 0,
             'anillo_id'   => $request->anillo_id,
             'estado'      => 'lobby',
             'room_code'   => strtoupper(substr(bin2hex(random_bytes(3)), 0, 6)),
         ]);
 
+        // Crear al Host como participante 1
+        $participante = Participante::create([
+            'usuario' => $request->usuario,
+            'user_id' => $request->user()?->id,
+        ]);
+
+        // Unirlo al juego
+        $juego->participantes()->attach($participante->participante_id, [
+            'rol_id'     => null, // Se asignará al empezar
+            'eco_fichas' => 12,
+            'puntuacion' => 0,
+        ]);
+
         return response()->json([
-            'message' => 'Juego creado correctamente',
-            'juego'   => $juego->load(['anillo']),
+            'message'      => 'Juego creado y host unido',
+            'juego'        => $juego->load(['anillo', 'participantes']),
+            'participante' => $participante
         ], 201);
     }
 

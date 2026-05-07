@@ -55,6 +55,8 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
         }
     }, [serverGameState]);
 
+    const [localFeedback, setLocalFeedback] = useState(null); // 'correct' | 'incorrect' | null
+
     const handleAdvance = async () => {
         try {
             if (onNextChallenge) {
@@ -65,6 +67,28 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
         } catch (error) {
             console.error('[HUE-CO2] Error al avanzar turno:', error);
         }
+    };
+
+    const handleApply = async (answer) => {
+        // Si no hay reto o es tipo waiting, ignorar
+        if (!activeChallenge || activeChallenge.type === 'waiting') return;
+
+        // 1. Validar respuesta (si es tipo opciones)
+        let isCorrect = true;
+        if (activeChallenge.type === 'options' && activeChallenge.options) {
+            // En modo local (1 jugador), validamos contra la primera opción o la definida
+            const correctOption = activeChallenge.correct_answer || activeChallenge.options[0];
+            isCorrect = (answer === correctOption);
+        }
+
+        // 2. Mostrar el feedback visual (Overlay)
+        setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
+
+        // 3. Esperar y avanzar
+        setTimeout(async () => {
+            setLocalFeedback(null);
+            await handleAdvance();
+        }, 2500);
     };
 
     const isLocalGame = roomCode && roomCode.startsWith('LOCAL_');
@@ -153,8 +177,8 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                         challenge={activeChallenge}
                         intensity={intensity}
                         setIntensity={setIntensity}
-                        onApply={handleAdvance}
-                        readOnly={!isLocalGame}
+                        onApply={handleApply}
+                        readOnly={!isLocalGame || localFeedback !== null}
                     />
                 </div>
             </main>
@@ -193,9 +217,9 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                 </AnimatePresence>
             </footer>
 
-            {/* OVERLAY DE RESULTADO DE TURNO */}
+            {/* OVERLAY DE RESULTADO DE TURNO (Multiplayer o Local) */}
             <AnimatePresence>
-                {gameState === 'results' && (
+                {(gameState === 'results' || localFeedback !== null) && (
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -205,9 +229,12 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                         <motion.div 
                             initial={{ scale: 0.5, rotate: -5 }}
                             animate={{ scale: 1, rotate: 0 }}
-                            className={`p-16 rounded-[4rem] shadow-2xl flex flex-col items-center gap-6 border-8 ${serverGameState?.lastTurnCorrect ? 'bg-emerald-500 border-emerald-400' : 'bg-rose-600 border-rose-500'}`}
+                            className={`p-16 rounded-[4rem] shadow-2xl flex flex-col items-center gap-6 border-8 
+                                ${(serverGameState?.lastTurnCorrect || localFeedback === 'correct') 
+                                    ? 'bg-emerald-500 border-emerald-400' 
+                                    : 'bg-rose-600 border-rose-500'}`}
                         >
-                            {serverGameState?.lastTurnCorrect ? (
+                            {(serverGameState?.lastTurnCorrect || localFeedback === 'correct') ? (
                                 <>
                                     <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-inner">
                                         <CheckCircle2 className="w-20 h-20 text-emerald-500" />

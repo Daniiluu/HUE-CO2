@@ -44,7 +44,24 @@ class GameController extends Controller
 
         $juego = Juego::where('room_code', $roomCode)->firstOrFail();
 
-        // Guardar el turno/voto en la BD para procesar penalizaciones luego
+        // Validar si es correcta (solo para tipo opciones)
+        $isCorrect = null;
+        $feedbackMsg = 'Tu elección ha sido enviada con éxito. ¡Suerte!';
+        
+        if ($validated['type'] === 'options' && $juego->current_carta_id) {
+            $pregunta = \App\Models\Pregunta::where('carta_id', $juego->current_carta_id)->first();
+            if ($pregunta) {
+                $opcionCorrecta = $pregunta->opciones()->where('correcta', true)->first();
+                if ($opcionCorrecta) {
+                    $isCorrect = ($opcionCorrecta->texto === $validated['answer']);
+                    $feedbackMsg = $isCorrect 
+                        ? "¡Correcto! Has ayudado a tu sector. 🎉" 
+                        : "¡Casi! La respuesta correcta era: " . $opcionCorrecta->texto . " ❌";
+                }
+            }
+        }
+
+        // Guardar el turno/voto en la BD
         Turno::updateOrCreate(
             [
                 'juego_id'        => $juego->juego_id,
@@ -65,9 +82,10 @@ class GameController extends Controller
         );
 
         return response()->json([
-            'status'   => 'ok',
-            'message'  => '¡Voto registrado! Esperando al Host...',
-            'feedback' => 'Tu elección ha sido enviada con éxito. ¡Suerte!'
+            'status'     => 'ok',
+            'is_correct' => $isCorrect,
+            'message'    => $isCorrect ? '¡Acierto!' : 'Voto registrado',
+            'feedback'   => $feedbackMsg
         ]);
     }
 
@@ -108,15 +126,39 @@ class GameController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
+    public function chat(Request $request, string $roomCode): JsonResponse
+    {
+        $playerName = $request->input('player_name', 'Jugador');
+        $message = $request->input('message');
+
+        if (!$message) {
+            return response()->json(['error' => 'Mensaje vacío'], 400);
+        }
+
+        broadcast(new \App\Events\ChatMessageReceived($roomCode, $playerName, $message));
+
+        return response()->json(['status' => 'sent']);
+    }
+
     /**
      * POST /api/game/{roomCode}/advance
      * El host avanza el juego al siguiente reto o estado.
      * (Solo disponible para el organizador/admin de la sala)
      */
-    public function advance(Request $request, string $roomCode): JsonResponse
+    public function advance(string $roomCode): JsonResponse
     {
         $juego = Juego::where('room_code', $roomCode)->firstOrFail();
+
+        // Si es el inicio de la partida (turno 0) y estamos en el lobby,
+        // el servicio GameFlowService se encargará de repartir los roles automáticamente
+        // al llamar a advanceTurn() por primera vez.
         
+        if ($juego->estado === 'lobby') {
+            $juego->estado = 'playing';
+            $juego->save();
+        }
+
+        // Avanzar el juego (si es el primer avance, GameFlowService inicializará los roles)
         $this->gameFlow->advanceTurn($juego);
         $juego->refresh();
 

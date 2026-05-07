@@ -88,7 +88,7 @@ export default function ChallengeCard({
             </div>
             {!readOnly && (
                 <button 
-                    onClick={onApply}
+                    onClick={() => onApply?.(selectedAnswer)}
                     disabled={!selectedAnswer}
                     className={`mt-4 w-full py-3 rounded-xl font-bold uppercase tracking-widest text-white shadow-lg transition-all ${selectedAnswer ? `${c.base} active:scale-95` : 'bg-slate-300 cursor-not-allowed'}`}
                 >

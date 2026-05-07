@@ -13,6 +13,7 @@ import MobileController from '../Components/Game/Modes/MobileController';
 import axios from 'axios';
 import { ROLES } from '../data/gameData';
 import { useGameChannel } from '../hooks/useGameChannel';
+import { GameBoard } from '../Components/Game/GameBoard';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -53,9 +54,28 @@ export default function GuestPortal({ pin = null }) {
     const [myTotalTokens, setMyTotalTokens] = useState(0);
     const [myParticipantId, setMyParticipantId] = useState(null);
     const [joinError, setJoinError] = useState(null);
+    const [isOnlineMode, setIsOnlineMode] = useState(false);
+    const [isHost, setIsHost] = useState(false);
     
-    // Escuchar el canal del juego para recibir el estado en tiempo real (y con él los roles asignados)
-    const { gameState: serverGameState } = useGameChannel(roomCode, null, myPlayerName);
+    // Escuchar el canal del juego para recibir el estado en tiempo real
+    const { gameState: serverGameState } = useGameChannel(roomCode, isHost ? 'host' : 'player', myPlayerName);
+
+    // AUTO-SALTO AL TABLERO: Si estamos en la lobby y el servidor dice que ya se está jugando, saltamos
+    useEffect(() => {
+        if (!serverGameState) return;
+
+        const isGameStarted = 
+            serverGameState.state === 'playing' || 
+            serverGameState.state === 'challenge' || 
+            (serverGameState.challenge && Object.keys(serverGameState.challenge).length > 0);
+        
+        console.log(`[HUE-CO2] Estado recibido en Lobby: ${serverGameState.state}. ¿Empezado?: ${isGameStarted}`);
+
+        if (view === 'lobby' && isGameStarted) {
+            console.log('[HUE-CO2] ¡Confirmado! La partida ha comenzado. Saltando al tablero...');
+            navigateTo('playing');
+        }
+    }, [serverGameState?.state, serverGameState?.challenge, view]);
 
     // Actualizar datos del rol cuando el servidor manda el estado de sectores
     useEffect(() => {
@@ -80,26 +100,77 @@ export default function GuestPortal({ pin = null }) {
         }
     };
 
-    const handleSelectMode = (selectedMode) => {
-        setMode(selectedMode);
-        if (selectedMode === 'solo' || selectedMode === 'small') {
+    const handleSelectMode = async (selectedMode, nickname) => {
+        // Si viene de HostAuthView con el nombre del host
+        if (nickname) setMyPlayerName(nickname);
+
+        // Caso 1: Solo quiere ver el selector online
+        if (selectedMode === 'online_selector') {
+            setIsOnlineMode(true);
+            navigateTo('select_mode');
+            return;
+        }
+
+        // Caso 2: Elige modo Solo (Local)
+        if (selectedMode === 'solo') {
+            setMode('solo');
+            setIsOnlineMode(false);
             navigateTo('lobby');
-        } else {
-            // Ir al tablero en nueva pestaña para Classic/Class
-            router.get('/tablero', { mode: selectedMode });
+            return;
+        }
+
+        // Caso 3: Elige un modo Multijugador (Small, Classic, Class)
+        setMode(selectedMode);
+        setIsHost(true);
+        try {
+            const response = await axios.post('/juego/crear', {
+                modo: selectedMode,
+                anillo_id: 1,
+                usuario: nickname || myPlayerName || 'Anfitrión'
+            });
+            
+            if (response.data?.juego?.room_code) {
+                const newRoomCode = response.data.juego.room_code;
+                setRoomCode(newRoomCode);
+                
+                if (response.data.participante) {
+                    setMyParticipantId(response.data.participante.participante_id);
+                }
+
+                navigateTo('lobby');
+            }
+        } catch (error) {
+            console.error('[HUE-CO2] Error creando partida online:', error);
+            setJoinError("No se pudo crear la sala online. Revisa tu conexión.");
         }
     };
 
-    const startLocalGame = async (params = {}) => {
-        try {
-            const gameMode = params.mode || mode;
-            // Usar la ruta pública /juego-local (no requiere autenticación)
-            router.get('/juego-local', { 
-                mode: gameMode,
-                players: params.players || selectedPlayers
-            });
-        } catch (error) {
-            console.error('[HUE-CO2] Error creando partida local:', error);
+    const handleStartGame = async (params = {}) => {
+        // Caso A: Partida Online (tiene un roomCode real)
+        if (roomCode && !roomCode.startsWith('LOCAL_')) {
+            try {
+                // 1. Avisar al servidor para que reparta roles y empiece
+                await axios.post(`/api/game/${roomCode}/advance`);
+                
+                // 2. Navegar a la vista de tablero (OnlinePlayerBoard)
+                // Usamos el modo 'playing' pero configuraremos el render para que muestre el tablero
+                navigateTo('playing');
+            } catch (error) {
+                console.error('[HUE-CO2] Error al iniciar partida online:', error);
+                alert("No se pudo iniciar la partida. Revisa la conexión del servidor.");
+            }
+        } 
+        // Caso B: Partida Local
+        else {
+            try {
+                const gameMode = params.mode || mode;
+                router.get('/juego-local', { 
+                    mode: gameMode,
+                    players: params.players || selectedPlayers
+                });
+            } catch (error) {
+                console.error('[HUE-CO2] Error creando partida local:', error);
+            }
         }
     };
 
@@ -115,7 +186,9 @@ export default function GuestPortal({ pin = null }) {
             setRoomCode(cleanPin);
             setMyPlayerName(data.nickname);
             setMyParticipantId(response.data.participante?.participante_id);
-            navigateTo('playing');
+            setMode(response.data.juego?.modo || 'multiplayer');
+            setIsHost(false);
+            navigateTo('lobby');
 
         } catch (error) {
             console.error('[HUE-CO2] Error al conectar:', error);
@@ -170,7 +243,7 @@ export default function GuestPortal({ pin = null }) {
                     <HostAuthView 
                         key="host_auth" 
                         onBack={() => navigateTo('main')} 
-                        onSelectMode={() => navigateTo('select_mode')} 
+                        onSelectMode={(mode, nickname) => handleSelectMode(mode, nickname)} 
                     />
                 )}
 
@@ -178,6 +251,7 @@ export default function GuestPortal({ pin = null }) {
                 {view === 'select_mode' && (
                     <ModeSelectionView 
                         key="select_mode" 
+                        hideSolo={isOnlineMode}
                         onBack={() => navigateTo('host_auth')} 
                         onSelectMode={handleSelectMode} 
                     />
@@ -188,10 +262,13 @@ export default function GuestPortal({ pin = null }) {
                     <LobbyView 
                         key="lobby" 
                         mode={mode}
+                        isHost={isHost}
+                        roomCode={roomCode}
+                        myPlayerName={myPlayerName}
                         selectedPlayers={selectedPlayers}
                         setSelectedPlayers={setSelectedPlayers}
-                        onBack={() => navigateTo('select_mode')}
-                        onStartGame={startLocalGame}
+                        onBack={() => navigateTo(isHost ? 'select_mode' : 'join')}
+                        onStartGame={handleStartGame}
                     />
                 )}
 
@@ -205,17 +282,27 @@ export default function GuestPortal({ pin = null }) {
                     />
                 )}
 
-                {/* VISTA 5: MANDO DE JUEGO (MOBILE) */}
+                {/* VISTA 5: JUEGO EN CURSO (MANDO O TABLERO) */}
                 {view === 'playing' && (
                     <div className="fixed inset-0 z-50 bg-white">
-                        <MobileController 
-                            roomCode={roomCode}
-                            participantId={myParticipantId}
-                            playerName={myPlayerName}
-                            roles={myRoles.length > 0 ? myRoles : [{ id: 'ciudadania', name: 'Ciudadanía' }]}
-                            tokens={myTotalTokens}
-                            gameState="lobby"
-                        />
+                        {roomCode && !roomCode.startsWith('LOCAL_') ? (
+                            <GameBoard 
+                                roomCode={roomCode}
+                                gameMode={mode || 'multiplayer'}
+                                myRoles={myRoles}
+                                myParticipantId={myParticipantId}
+                                onEnd={(win) => console.log('Game Over:', win)}
+                            />
+                        ) : (
+                            <MobileController 
+                                roomCode={roomCode}
+                                participantId={myParticipantId}
+                                playerName={myPlayerName}
+                                roles={myRoles.length > 0 ? myRoles : [{ id: 'ciudadania', name: 'Ciudadanía' }]}
+                                tokens={myTotalTokens}
+                                gameState="lobby"
+                            />
+                        )}
                     </div>
                 )}
             </AnimatePresence>

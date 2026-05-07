@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import OrbitalBoard from '../UI/OrbitalBoard';
 import GlobalThermometer from '../UI/GlobalThermometer';
 import ChallengeCard from '../UI/ChallengeCard';
 import { useGame } from '../Core/GameProvider';
-import { motion } from 'framer-motion';
-import { Send, CheckCircle2, Users, Cpu, Shirt, FlaskConical, Tractor, Landmark, Hexagon, Clock, LogOut, Zap } from 'lucide-react';
+import { useGameChannel } from '../../../hooks/useGameChannel';
+import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
+import { Send, CheckCircle2, Users, Cpu, Shirt, FlaskConical, Tractor, Landmark, Hexagon, Clock, LogOut, Zap, X } from 'lucide-react';
 
 const figmaColors = {
     'ciencia':    { bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', shadow: 'shadow-[0px_4px_0px_0px_rgba(150,64,255,1.0)]', textTitle: 'text-purple-700', iconClass: 'text-[#9640FF]' },
@@ -27,172 +29,208 @@ const getRoleIcon = (iconName, id) => {
     }
 };
 
-export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myRole }) {
-    const { timeLeft, intensity, setIntensity } = useGame();
-    const [messages, setMessages] = useState([
-        { id: 1, user: 'Sistema', text: '¡Coordinación activa!', type: 'system' }
-    ]);
-    const [chatInput, setChatInput] = useState('');
-    const [votedSectors, setVotedSectors] = useState({});
+export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myRoles = [], myParticipantId }) {
+    const { timeLeft, intensity, setIntensity, setTimeLeft, setIsPaused } = useGame();
+    
+    // 1. Identificar cuáles de los sectores me pertenecen
+    const myAssignedRoles = sectors.filter(s => 
+        myRoles.some(mr => mr.id === s.id) || (s.playerName === 'Anfitrión' && myRoles.length === 0)
+    );
 
-    const myRoleData = sectors.find(s => s.id === myRole?.id) || sectors[0];
-    const theme = figmaColors[myRoleData?.id] || figmaColors['tech'];
+    // 2. Determinar quién tiene el turno en el servidor
+    const [activeChallenge, setActiveChallenge] = useState(challenge);
+    const activeSectorInChallenge = sectors.find(s => s.id === activeChallenge?.activeSectorId);
+    
+    // 3. ¿Es mi turno? (Cualquiera de mis roles coincide con el sector activo)
+    const isMyTurn = myRoles.some(r => r.id === activeChallenge?.activeSectorId);
+    const activePlayerName = activeSectorInChallenge?.playerName || 'otro jugador';
+
+    // 4. Identidad visual dinámica
+    const currentDisplayRole = isMyTurn ? activeSectorInChallenge : (myAssignedRoles[0] || sectors[0]);
+    const theme = figmaColors[currentDisplayRole?.id] || figmaColors['tech'];
+
+    // 5. Conexión WebSocket
+    const { isConnected, gameState: serverGameState, chatMessages: serverChat, sendChatMessage } = useGameChannel(roomCode, 'player', currentDisplayRole?.playerName);
+
+    // 6. Estados de juego
+    const [localMessages, setLocalMessages] = useState([{ id: 1, user: 'Sistema', text: '¡Conexión establecida!', type: 'system' }]);
+    const [chatInput, setChatInput] = useState('');
+    const [hasVoted, setHasVoted] = useState(false);
+    const [lastFeedback, setLastFeedback] = useState(null);
+
+    // Combinar mensajes locales y del servidor
+    const allMessages = [...localMessages, ...serverChat].sort((a, b) => a.id - b.id);
+
+    // Sincronización del reto y pausa en Lobby
+    useEffect(() => {
+        if (serverGameState?.challenge) {
+            setActiveChallenge(serverGameState.challenge);
+            if (serverGameState.challenge.time) setTimeLeft(serverGameState.challenge.time);
+        }
+    }, [serverGameState?.challenge]);
+
+    useEffect(() => {
+        if (serverGameState?.state === 'lobby') {
+            setIsPaused(true);
+            setTimeLeft(0); 
+        } else {
+            setIsPaused(false);
+        }
+    }, [serverGameState?.state]);
+
+    useEffect(() => {
+        if (activeChallenge?.id) {
+            setHasVoted(false);
+            setLastFeedback(null);
+        }
+    }, [activeChallenge?.id]);
 
     const sendMessage = () => {
         if (!chatInput.trim()) return;
-        setMessages(prev => [...prev, { id: Date.now(), user: 'Tú', text: chatInput, type: 'user' }]);
+        sendChatMessage(chatInput);
         setChatInput('');
     };
 
+    const handleVote = async (answer) => {
+        if (hasVoted || !isMyTurn) return;
+
+        let cleanAnswer = answer;
+        if (answer && typeof answer === 'object' && answer.target) {
+            cleanAnswer = answer.target.value || answer.target.innerText;
+        }
+
+        try {
+            const response = await axios.post(`/api/game/${roomCode}/vote`, {
+                sector_id: activeChallenge?.activeSectorId,
+                player_name: currentDisplayRole?.playerName || 'Jugador Online',
+                answer: cleanAnswer,
+                type: activeChallenge?.type || 'options',
+                participant_id: myParticipantId 
+            });
+            
+            setHasVoted(true);
+            setLastFeedback(response.data.is_correct);
+            setLocalMessages(prev => [...prev, { id: Date.now(), user: 'Sistema', text: response.data.feedback || '¡Voto registrado!', type: 'system' }]);
+        } catch (error) {
+            console.error("[HUE-CO2] Error al enviar respuesta:", error);
+        }
+    };
+
+    if (serverGameState?.state === 'lobby' || !activeChallenge) {
+        return (
+            <div className="h-screen w-full bg-stone-50 flex flex-col items-center justify-center font-sans p-10">
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-12 rounded-[4rem] border-4 border-stone-200 shadow-2xl text-center max-w-md w-full">
+                    <Clock className="w-12 h-12 text-[#87AF4C] animate-spin mx-auto mb-8" />
+                    <h2 className="text-4xl font-black text-stone-900 mb-4 tracking-tighter">¡Dentro!</h2>
+                    <p className="text-stone-500 font-bold text-lg leading-snug">Esperando al anfitrión...</p>
+                </motion.div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans overflow-hidden relative">
-            {/* Fondo decorativo */}
-            <div className="absolute inset-0 pointer-events-none opacity-30"
-                style={{ background: 'radial-gradient(circle at 50% 0%, #dcfce7 0%, transparent 60%)' }} />
-
-            {/* ── Cabecera ───────────────────────────────────────────────── */}
-            <div className="pt-4 lg:pt-6 px-8 w-full max-w-[1750px] mx-auto z-50 shrink-0">
-                <div className="flex items-end justify-between mb-2 lg:mb-3">
-                    {/* Sala */}
-                    <div className="flex-none">
-                        <div className="bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 flex items-center gap-3">
-                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_#10b981]" />
-                            <span className="text-[11px] font-black text-slate-400 tracking-[0.3em] uppercase">
-                                SALA: <span className="text-slate-900 ml-1">{roomCode || 'ONLINE'}</span>
-                            </span>
+            <AnimatePresence>
+                {hasVoted && lastFeedback !== null && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-24 left-1/2 -translate-x-1/2 z-[100] bg-white border-2 border-slate-200 px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${lastFeedback ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                            {lastFeedback ? <CheckCircle2 size={24} /> : <X size={24} />}
                         </div>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Resultado</span>
+                            <span className="text-lg font-black text-slate-900 leading-tight">{lastFeedback ? '¡Acierto!' : '¡Fallo!'}</span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div className="pt-4 lg:pt-6 px-8 w-full max-w-[1750px] mx-auto z-50">
+                <div className="flex items-end justify-between mb-2">
+                    <div className="bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-white/50 flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[11px] font-black text-slate-400 tracking-[0.3em] uppercase">SALA: {roomCode}</span>
                     </div>
-
-                    {/* Espacio central */}
-                    <div className="flex-1" />
-
-                    {/* Tiempo y Salir */}
-                    <div className="flex-none pr-4">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-4 bg-white/90 backdrop-blur-md px-6 py-2.5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50">
-                                <Clock className="w-6 h-6 text-slate-300" strokeWidth={2.5} />
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tiempo</span>
-                                    <span className={`font-black text-3xl tabular-nums tracking-tighter leading-none ${timeLeft < 30 ? 'text-rose-500 animate-pulse' : 'text-slate-800'}`}>
-                                        {Math.floor(timeLeft / 60)}:{timeLeft % 60 < 10 ? '0' : ''}{timeLeft % 60}
-                                    </span>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => alert('Salir')}
-                                className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all group shrink-0"
-                            >
-                                <LogOut className="w-6 h-6 transition-transform group-hover:scale-110" />
-                            </button>
-                        </div>
+                    <div className="flex items-center gap-4 bg-white/90 backdrop-blur-md px-6 py-2.5 rounded-2xl shadow-sm border border-white/50">
+                        <Clock className="w-6 h-6 text-slate-300" />
+                        <span className={`font-black text-3xl tabular-nums ${timeLeft < 30 ? 'text-rose-500 animate-pulse' : 'text-slate-800'}`}>
+                            {Math.floor(timeLeft / 60)}:{timeLeft % 60 < 10 ? '0' : ''}{timeLeft % 60}
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* ── Área central: Termómetro + Orbital + Carta ─────────────── */}
             <div className="flex-1 min-h-0 w-full max-w-[1750px] mx-auto px-8 relative z-10">
-                <div className="flex items-center justify-between gap-4 lg:gap-6 h-full min-h-0 overflow-hidden">
-                    <GlobalThermometer temperature={0.0} />
-
-                    <OrbitalBoard sectors={sectors} />
-
-                    <ChallengeCard
-                        challenge={challenge}
-                        intensity={intensity}
-                        setIntensity={setIntensity}
-                        onApply={() => alert('Aplicado')}
-                        sectorColor="blue"
-                        isCompact={true}
-                    />
+                <div className="flex items-center justify-between gap-6 h-full overflow-hidden">
+                    <GlobalThermometer temperature={intensity} />
+                    <OrbitalBoard sectors={sectors} activeSectorId={activeChallenge?.activeSectorId} />
+                    <div className="relative">
+                        <ChallengeCard
+                            challenge={activeChallenge}
+                            intensity={intensity}
+                            setIntensity={setIntensity}
+                            onApply={handleVote}
+                            sectorColor={currentDisplayRole?.color || 'blue'}
+                            isCompact={true}
+                            readOnly={hasVoted || !isMyTurn}
+                        />
+                        {!isMyTurn && (
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute -bottom-6 left-0 right-0 text-center">
+                                <span className="bg-[#1c1917] text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2">
+                                    <Users size={12} className="text-[#87AF4C]" /> Turno de: {activePlayerName}
+                                </span>
+                            </motion.div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* ── Barra Inferior Unificada ────────────────────────────────── */}
-            <footer className="w-full bg-slate-100 border-t border-slate-200 flex items-center h-[140px] shrink-0 z-20 relative px-4 gap-3">
-
-                {/* ▌Sección 1: Tu Habilidad */}
-                <motion.button
-                    whileHover={{ y: -2 }}
-                    className={`flex items-center gap-4 px-5 py-3 h-full w-[200px] lg:w-[250px] shrink-0 ${theme.bg} rounded-2xl shadow-sm border border-white/60 transition-all`}
-                >
-                    {/* Icono del rol */}
-                    <div className="w-12 h-12 p-2.5 bg-white rounded-2xl flex justify-center items-center shadow-md shrink-0">
-                        <div className={`w-full h-full ${theme.iconClass}`}>
-                            {getRoleIcon(myRoleData?.iconName, myRoleData?.id)}
+            <footer className="w-full bg-slate-100 border-t border-slate-200 flex items-center h-[140px] px-4 gap-3">
+                {/* Tus Roles */}
+                <div className="flex gap-2 overflow-x-auto h-full py-3 scrollbar-hide">
+                    {myAssignedRoles.map(role => (
+                        <div key={role.id} className={`flex items-center gap-3 px-4 py-2 rounded-2xl border-2 transition-all min-w-[180px]
+                            ${role.id === activeChallenge?.activeSectorId ? 'bg-white border-[#87AF4C] shadow-lg scale-105 z-10' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                            <div className={`w-10 h-10 p-2 rounded-xl bg-white shadow-sm ${figmaColors[role.id]?.iconClass}`}>
+                                {getRoleIcon(role.iconName, role.id)}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Tu Sector</span>
+                                <span className="text-[11px] font-black uppercase truncate text-slate-700">{role.name}</span>
+                            </div>
                         </div>
-                    </div>
+                    ))}
+                </div>
 
-                    {/* Info */}
-                    <div className="flex flex-col items-start min-w-0">
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-black/10 text-black/50 px-2 py-0.5 rounded-full mb-1.5">
-                            Tu Habilidad
-                        </span>
-                        <span className={`${theme.textTitle} text-sm font-black uppercase tracking-tight truncate w-full`}>
-                            {myRoleData?.name}
-                        </span>
-                        <span className="text-[9px] font-semibold text-slate-600 leading-tight line-clamp-2 mt-0.5">
-                            {myRoleData?.activeDesc?.split(':')[0]}
-                        </span>
-                    </div>
-
-                    {/* Icono de acción */}
-                    <Zap className="w-5 h-5 text-yellow-500 shrink-0 hidden lg:block" strokeWidth={2.5} />
-                </motion.button>
-
-                {/* ▌Sección 2: Chat */}
-                <div className="flex-1 flex flex-col justify-between py-3 px-4 min-w-0 bg-white rounded-2xl shadow-sm border border-slate-100 h-full">
-                    {/* Mensajes */}
-                    <div className="flex-1 overflow-y-auto space-y-1 pr-1 mb-2 scrollbar-hide">
-                        {messages.slice(-3).map(msg => (
-                            <div key={msg.id} className={`text-[11px] leading-tight ${msg.type === 'system' ? 'text-slate-400 italic' : 'text-slate-700'}`}>
-                                {msg.type !== 'system' && (
-                                    <span className="font-black text-blue-600 mr-1.5">{msg.user}:</span>
-                                )}
+                {/* Chat */}
+                <div className="flex-1 flex flex-col justify-between py-3 px-4 bg-white rounded-2xl shadow-sm border border-slate-100 h-full">
+                    <div className="flex-1 overflow-y-auto space-y-1 mb-2 text-[11px]">
+                        {allMessages.slice(-3).map(msg => (
+                            <div key={msg.id} className={msg.type === 'system' ? 'text-slate-400 italic' : 'text-slate-700'}>
+                                {msg.type !== 'system' && <span className="font-black text-blue-600 mr-1.5">{msg.user}:</span>}
                                 {msg.text}
                             </div>
                         ))}
                     </div>
-
-                    {/* Input */}
-                    <div className="flex gap-2 shrink-0">
-                        <input
-                            type="text"
-                            value={chatInput}
-                            onChange={e => setChatInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                            placeholder="Habla con tu equipo..."
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-semibold focus:border-blue-400 focus:outline-none transition-all"
-                        />
-                        <button
-                            onClick={sendMessage}
-                            className="bg-blue-600 text-white px-3 py-2 rounded-xl shadow hover:bg-blue-700 active:scale-95 transition-all shrink-0"
-                        >
-                            <Send size={14} />
-                        </button>
+                    <div className="flex gap-2">
+                        <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder="Escribe al equipo..." className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:outline-none focus:border-blue-400" />
+                        <button onClick={sendMessage} className="bg-blue-600 text-white px-3 py-2 rounded-xl"><Send size={14} /></button>
                     </div>
                 </div>
 
-                {/* ▌Sección 3: Confirmación de Votación */}
-                <div className="flex flex-col justify-between py-3 px-5 w-[240px] lg:w-[300px] shrink-0 bg-white rounded-2xl shadow-sm border border-slate-100 h-full">
+                {/* Monitoreo Global */}
+                <div className="flex flex-col justify-between py-3 px-5 w-[280px] bg-white rounded-2xl shadow-sm border border-slate-100 h-full">
                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
-                        <CheckCircle2 size={12} className="text-emerald-500" />
-                        Confirmación de Estrategia
+                        <CheckCircle2 size={12} className="text-emerald-500" /> Estado Global
                     </div>
                     <div className="grid grid-cols-3 gap-2 flex-1">
-                        {sectors.map(role => {
-                            const roleTheme = figmaColors[role.id] || figmaColors['tech'];
-                            return (
-                            <button
-                                key={role.id}
-                                onClick={() => setVotedSectors(prev => ({ ...prev, [role.id]: !prev[role.id] }))}
-                                className={`flex items-center justify-center p-2 rounded-xl border-2 transition-all active:scale-90
-                                    ${votedSectors[role.id] ? 'bg-emerald-50 border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
-                            >
-                                <div className={`w-5 h-5 ${votedSectors[role.id] ? roleTheme.iconClass : 'text-slate-300'}`}>
+                        {sectors.map(role => (
+                            <div key={role.id} className={`flex items-center justify-center p-2 rounded-xl border-2 transition-all 
+                                ${role.id === activeChallenge?.activeSectorId ? 'bg-amber-50 border-amber-400 animate-pulse' : 'bg-slate-50 border-slate-100'}`}>
+                                <div className={`w-5 h-5 ${role.id === activeChallenge?.activeSectorId ? 'text-amber-600' : 'text-slate-300'}`}>
                                     {getRoleIcon(role.iconName, role.id)}
                                 </div>
-                            </button>
-                        )})}
+                            </div>
+                        ))}
                     </div>
                 </div>
             </footer>

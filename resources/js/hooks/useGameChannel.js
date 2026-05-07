@@ -28,6 +28,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
     const [votes, setVotes]               = useState({});   // { sectorId: answer }
     const [proposal, setProposal]         = useState(null); // La propuesta activa
     const [gameState, setGameState]       = useState(null); // Último estado del host
+    const [chatMessages, setChatMessages] = useState([]);   // Historial de chat
 
     // ── Suscripción al canal ──────────────────────────────────────────────────
     useEffect(() => {
@@ -54,6 +55,14 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
                     setProposal(null);
                 }
             })
+            .listen('.chat.message', (e) => {
+                setChatMessages(prev => [...prev, {
+                    id: Date.now() + Math.random(),
+                    user: e.playerName,
+                    text: e.message,
+                    type: 'user'
+                }]);
+            })
             .subscribed(() => {
                 setIsConnected(true);
                 console.log(`[HUE-CO2] Conectado al canal: ${channelName}`);
@@ -73,7 +82,8 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
 
     // ── Polling de respaldo (por si falla WebSockets) ─────────────────────────
     useEffect(() => {
-        if (!roomCode) return;
+        // No hacer polling si no hay código o si es una partida local (no persiste en BD)
+        if (!roomCode || roomCode.startsWith('LOCAL_')) return;
 
         const fetchState = async () => {
             try {
@@ -151,13 +161,27 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             console.error('[HUE-CO2] Error al enviar propuesta:', err);
         }
     }, [roomCode, sectorId, playerName, participantId]);
+    
+    const sendChatMessage = useCallback(async (text) => {
+        if (!roomCode || !text.trim()) return;
+        try {
+            await axios.post(`/api/game/${roomCode}/chat`, {
+                player_name: playerName,
+                message:     text,
+            });
+        } catch (err) {
+            console.error('[HUE-CO2] Error al enviar mensaje de chat:', err);
+        }
+    }, [roomCode, playerName]);
 
     return {
         isConnected,
         votes,
         proposal,
         gameState,
+        chatMessages,
         sendVote,
         sendProposal,
+        sendChatMessage,
     };
 }

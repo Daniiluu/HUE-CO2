@@ -43,7 +43,7 @@ class GameFlowService
             
             // Inicializar roles si es el primer turno (todos los modos)
             if ($juego->current_turn === 0) {
-                $this->initializeSmallModeRoles($juego);
+                $this->initializeParticipantRoles($juego);
             }
 
             $juego->current_turn += 1;
@@ -71,64 +71,41 @@ class GameFlowService
     }
 
     /**
-     * Distribuye roles aleatoriamente entre los participantes de forma EQUITATIVA.
-     * Si hay más roles que jugadores, cada jugador recibe varios roles (lo más igualado posible).
-     * Si hay igual o menos roles que jugadores, cada jugador recibe exactamente 1 rol.
+     * Distribuye los 6 roles de forma aleatoria y equitativa entre los participantes conectados.
      */
-    protected function initializeSmallModeRoles(Juego $juego)
+    protected function initializeParticipantRoles(Juego $juego)
     {
-        // Recargar participantes frescos desde la BD (sin cache pivot)
+        // Recargar participantes frescos desde la BD
         $participantes = $juego->participantes()->distinct()->get();
         $numParticipantes = $participantes->count();
 
         if ($numParticipantes === 0) return;
 
-        // Obtener todos los roles disponibles y mezclarlos aleatoriamente
+        // Obtener los 6 sectores de la base de datos y mezclarlos
         $rolesIds = DB::table('roles')->pluck('rol_id')->shuffle()->values();
         $numRoles = $rolesIds->count();
 
-        // Eliminar asignaciones anteriores para esta partida
+        // Limpiar asignaciones previas para evitar duplicados
         DB::table('juego_participante')->where('juego_id', $juego->juego_id)->delete();
 
         $inserts = [];
 
-        if ($numRoles <= $numParticipantes) {
-            // Menos o igual roles que jugadores: 1 rol por jugador (al azar)
-            $participantesMezclados = $participantes->shuffle();
-            foreach ($rolesIds as $i => $rol_id) {
-                $p = $participantesMezclados[$i];
-                $inserts[] = [
-                    'juego_id'        => $juego->juego_id,
-                    'participante_id' => $p->participante_id,
-                    'rol_id'          => $rol_id,
-                    'eco_fichas'      => 12,
-                    'puntuacion'      => 0,
-                ];
-            }
-        } else {
-            // Más roles que jugadores: repartir equitativamente
-            // Ej: 6 roles, 3 jugadores → 2 roles por jugador
-            // Ej: 6 roles, 4 jugadores → 2 jugadores con 2 roles y 2 con 1 rol
-            foreach ($rolesIds as $i => $rol_id) {
-                $p = $participantes[$i % $numParticipantes];
-                $inserts[] = [
-                    'juego_id'        => $juego->juego_id,
-                    'participante_id' => $p->participante_id,
-                    'rol_id'          => $rol_id,
-                    'eco_fichas'      => 12,
-                    'puntuacion'      => 0,
-                ];
-            }
+        // Reparto equitativo: repartimos los 6 roles entre los N participantes usando el operador modulo
+        foreach ($rolesIds as $i => $rol_id) {
+            $p = $participantes[$i % $numParticipantes];
+            $inserts[] = [
+                'juego_id'        => $juego->juego_id,
+                'participante_id' => $p->participante_id,
+                'rol_id'          => $rol_id,
+                'eco_fichas'      => 12,
+                'puntuacion'      => 0,
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ];
         }
 
         DB::table('juego_participante')->insert($inserts);
         $juego->load('participantes');
-
-        \Log::info('[HUE-CO2] Roles repartidos', [
-            'juego_id' => $juego->juego_id,
-            'jugadores' => $numParticipantes,
-            'roles_asignados' => count($inserts),
-        ]);
     }
 
     /**

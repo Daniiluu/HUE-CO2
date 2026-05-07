@@ -13,7 +13,8 @@ export function GameBoard({
     onEnd, 
     tutorialStep = -1, 
     gameMode = 'solo', 
-    myRole,
+    myRoles = [],
+    myParticipantId,
     roomCode
 }) {
     const [sectorsState, setSectorsState] = useState([]);
@@ -106,14 +107,23 @@ export function GameBoard({
 
     // Renderizado condicional según el modo de juego
     const renderBoard = () => {
+        // Si hay un roomCode real (online), forzamos el tablero interactivo del jugador
+        const isOnline = roomCode && !roomCode.startsWith('LOCAL_');
+
+        if (isOnline) {
+            return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRoles={myRoles} myParticipantId={myParticipantId} />;
+        }
+
         switch (gameMode) {
             case 'shared':
             case 'solo':
-            case 'small':
                 return <LocalDisplayBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} turnNumber={turnNumber} onNextChallenge={nextChallenge} />;
             
+            case 'small':
             case 'multiplayer':
-                return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRole={myRole} />;
+            case 'classic':
+            case 'class':
+                return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRoles={myRoles} myParticipantId={myParticipantId} />;
             
             default:
                 return <LocalDisplayBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} turnNumber={turnNumber} />;
