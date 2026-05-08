@@ -48,30 +48,34 @@ class GameFlowService
 
             $juego->current_turn += 1;
             
-            // --- ORDEN DE ANILLOS (Sincronizado con IDs de la DB) ---
-            $order = [1, 2, 3, 4, 5];
+            // --- ORDEN DE ANILLOS: leer de la BD para no hardcodear IDs ---
+            $order = DB::table('anillos')->orderBy('orden')->pluck('anillo_id')->toArray();
             $phaseIndex = (int)floor(($juego->current_turn - 1) / 6);
             
-            \Log::info("[HUE-CO2] Avanzando Turno: {$juego->current_turn} | Fase: " . ($phaseIndex + 1));
+            \Log::info("[HUE-CO2] Avanzando Turno: {$juego->current_turn} | Fase (anillo): " . ($phaseIndex + 1) . " de " . count($order));
 
             if ($phaseIndex >= count($order)) {
-                \Log::info("[HUE-CO2] Juego finalizado.");
+                \Log::info("[HUE-CO2] Juego finalizado tras " . $juego->current_turn . " turnos.");
                 $juego->estado = 'ended';
                 $juego->save();
-                $juego->load('anillo'); // CRÍTICO: Cargar el nuevo nombre del anillo
+                $juego->load('anillo');
                 $this->broadcastState($juego);
                 return $juego;
             }
 
-            $juego->anillo_id = $order[$phaseIndex];
-            $juego->load('anillo'); // Leer el nombre real (Energía, Plástico...) inmediatamente
-            \Log::info("[HUE-CO2] Anillo asignado: {$juego->anillo_id} (" . ($juego->anillo->nombre ?? 'N/A') . ")");
+            $nuevoAnilloId = $order[$phaseIndex];
+            if ($juego->anillo_id !== $nuevoAnilloId) {
+                \Log::info("[HUE-CO2] ¡Cambio de anillo! {$juego->anillo_id} → {$nuevoAnilloId}");
+            }
+            $juego->anillo_id = $nuevoAnilloId;
+            $juego->load('anillo');
+            \Log::info("[HUE-CO2] Anillo activo: {$juego->anillo_id} (" . ($juego->anillo->nombre ?? 'N/A') . ")");
 
             // Rotar al siguiente sector activo
             $this->selectNextActiveSector($juego);
 
-            // Seleccionar nueva carta del anillo CALCULADO
-            $nuevaCarta = $this->pickRandomCard($juego->anillo_id);
+            // Seleccionar nueva carta del anillo CALCULADO, sin repetir cartas previas
+            $nuevaCarta = $this->pickRandomCard($juego, $juego->anillo_id);
             
             if ($nuevaCarta) {
                 $juego->current_carta_id = $nuevaCarta->carta_id;
@@ -337,9 +341,27 @@ class GameFlowService
         return $feedbackMap;
     }
 
-    protected function pickRandomCard($anilloId)
+    protected function pickRandomCard(Juego $juego, $anilloId)
     {
-        return Carta::where('anillo_id', $anilloId)->inRandomOrder()->first();
+        // Obtener los IDs de las cartas que ya se han jugado en este juego
+        $cartasJugadas = DB::table('turnos')
+            ->where('juego_id', $juego->juego_id)
+            ->whereNotNull('carta_id')
+            ->pluck('carta_id')
+            ->toArray();
+
+        // Elegir una carta del anillo que no se haya jugado
+        $carta = Carta::where('anillo_id', $anilloId)
+            ->whereNotIn('carta_id', $cartasJugadas)
+            ->inRandomOrder()
+            ->first();
+
+        // Si por alguna razón nos quedamos sin cartas, repetimos de las que hay en el anillo
+        if (!$carta) {
+            $carta = Carta::where('anillo_id', $anilloId)->inRandomOrder()->first();
+        }
+
+        return $carta;
     }
 
     protected function formatChallenge(?Carta $carta, Juego $juego)
