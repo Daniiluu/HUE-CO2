@@ -11,10 +11,10 @@ import OnlinePlayerBoard from './Modes/OnlinePlayerBoard';
 export function GameBoard({ 
     players: activePlayers, 
     onEnd, 
-    tutorialStep = -1, 
-    gameMode = 'solo', 
     myRoles = [],
+    myPlayerName,
     myParticipantId,
+    turnNumber: parentTurnNumber,
     roomCode
 }) {
     const [sectorsState, setSectorsState] = useState([]);
@@ -111,7 +111,7 @@ export function GameBoard({
         const isOnline = roomCode && !roomCode.startsWith('LOCAL_');
 
         if (isOnline) {
-            return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRoles={myRoles} myParticipantId={myParticipantId} />;
+            return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRoles={myRoles} myParticipantId={myParticipantId} myPlayerName={myPlayerName} turnNumber={serverGameState?.turnNumber || parentTurnNumber} />;
         }
 
         switch (gameMode) {
@@ -123,7 +123,7 @@ export function GameBoard({
             case 'multiplayer':
             case 'classic':
             case 'class':
-                return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRoles={myRoles} myParticipantId={myParticipantId} />;
+                return <OnlinePlayerBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} myRoles={myRoles} myParticipantId={myParticipantId} myPlayerName={myPlayerName} turnNumber={serverGameState?.turnNumber || parentTurnNumber} />;
             
             default:
                 return <LocalDisplayBoard sectors={sectors} challenge={currentChallenge} roomCode={roomCode} turnNumber={turnNumber} />;

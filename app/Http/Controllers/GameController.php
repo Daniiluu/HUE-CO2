@@ -37,7 +37,7 @@ class GameController extends Controller
         $validated = $request->validate([
             'sector_id'   => 'required|string',
             'player_name' => 'required|string|max:50',
-            'answer'      => 'required',
+            'answer'      => 'nullable',
             'type'        => 'required|in:options,slider,validate',
             'participant_id' => 'nullable|integer',
         ]);
@@ -81,11 +81,27 @@ class GameController extends Controller
             type:       $validated['type']
         );
 
+        // --- AVANCE AUTOMÁTICO REFORZADO ---
+        // Forzamos el avance para que la partida no se bloquee bajo ningún concepto
+        try {
+            // 1. Pasar a 'results'
+            $this->gameFlow->advanceTurn($juego);
+            $juego->refresh();
+            
+            // 2. Saltar directamente al siguiente reto ('playing')
+            if ($juego->estado === 'results') {
+                $this->gameFlow->advanceTurn($juego);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en auto-avance: " . $e->getMessage());
+        }
+
         return response()->json([
             'status'     => 'ok',
             'is_correct' => $isCorrect,
             'message'    => $isCorrect ? '¡Acierto!' : 'Voto registrado',
-            'feedback'   => $feedbackMsg
+            'feedback'   => $feedbackMsg,
+            'next_state' => 'challenge'
         ]);
     }
 

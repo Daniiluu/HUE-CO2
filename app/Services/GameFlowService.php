@@ -48,10 +48,23 @@ class GameFlowService
 
             $juego->current_turn += 1;
             
-            // Rotar al siguiente sector activo
+            // --- CAMBIO DE ANILLO CADA 6 TURNOS ---
+            if ($juego->current_turn > 1 && ($juego->current_turn - 1) % 6 === 0) {
+                $juego->anillo_id = ($juego->anillo_id ?? 1) + 1;
+                // Verificar si el anillo existe, si no, terminar el juego
+                $maxAnillo = DB::table('anillos')->max('anillo_id') ?: 3;
+                if ($juego->anillo_id > $maxAnillo) {
+                    $juego->estado = 'ended';
+                    $juego->save();
+                    $this->broadcastState($juego);
+                    return $juego;
+                }
+            }
+
+            // Rotar al siguiente sector activo (vuelve al inicio automáticamente por el módulo 6)
             $this->selectNextActiveSector($juego);
 
-            // Seleccionar nueva carta
+            // Seleccionar nueva carta del anillo correspondiente
             $nuevaCarta = $this->pickRandomCard($juego->anillo_id);
             
             if ($nuevaCarta) {
@@ -309,7 +322,7 @@ class GameFlowService
         if (!$carta) return [];
         $pregunta = $carta->preguntas->first();
         return [
-            'id' => $carta->carta_id,
+            'id' => "T{$juego->current_turn}-C" . ($carta->carta_id ?? 0),
             'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
             'description' => $pregunta ? '' : $carta->texto, // Si hay pregunta, el título ya la muestra.

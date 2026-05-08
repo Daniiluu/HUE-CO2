@@ -290,6 +290,7 @@ export default function GuestPortal({ pin = null }) {
                                 roomCode={roomCode}
                                 gameMode={mode || 'multiplayer'}
                                 myRoles={myRoles}
+                                myPlayerName={myPlayerName}
                                 myParticipantId={myParticipantId}
                                 onEnd={(win) => console.log('Game Over:', win)}
                             />
