@@ -48,35 +48,44 @@ class GameFlowService
 
             $juego->current_turn += 1;
             
-            // --- CAMBIO DE ANILLO CADA 6 TURNOS ---
-            if ($juego->current_turn > 1 && ($juego->current_turn - 1) % 6 === 0) {
-                $juego->anillo_id = ($juego->anillo_id ?? 1) + 1;
-                // Verificar si el anillo existe, si no, terminar el juego
-                $maxAnillo = DB::table('anillos')->max('anillo_id') ?: 3;
-                if ($juego->anillo_id > $maxAnillo) {
-                    $juego->estado = 'ended';
-                    $juego->save();
-                    $this->broadcastState($juego);
-                    return $juego;
-                }
+            // --- ORDEN DE ANILLOS (Sincronizado con IDs de la DB) ---
+            $order = [1, 2, 3, 4, 5];
+            $phaseIndex = (int)floor(($juego->current_turn - 1) / 6);
+            
+            \Log::info("[HUE-CO2] Avanzando Turno: {$juego->current_turn} | Fase: " . ($phaseIndex + 1));
+
+            if ($phaseIndex >= count($order)) {
+                \Log::info("[HUE-CO2] Juego finalizado.");
+                $juego->estado = 'ended';
+                $juego->save();
+                $juego->load('anillo'); // CRÍTICO: Cargar el nuevo nombre del anillo
+                $this->broadcastState($juego);
+                return $juego;
             }
 
-            // Rotar al siguiente sector activo (vuelve al inicio automáticamente por el módulo 6)
+            $juego->anillo_id = $order[$phaseIndex];
+            $juego->load('anillo'); // Leer el nombre real (Energía, Plástico...) inmediatamente
+            \Log::info("[HUE-CO2] Anillo asignado: {$juego->anillo_id} (" . ($juego->anillo->nombre ?? 'N/A') . ")");
+
+            // Rotar al siguiente sector activo
             $this->selectNextActiveSector($juego);
 
-            // Seleccionar nueva carta del anillo correspondiente
+            // Seleccionar nueva carta del anillo CALCULADO
             $nuevaCarta = $this->pickRandomCard($juego->anillo_id);
             
             if ($nuevaCarta) {
                 $juego->current_carta_id = $nuevaCarta->carta_id;
                 $juego->estado = 'playing';
+                \Log::info("[HUE-CO2] Carta elegida: ID {$juego->current_carta_id} | Título: " . ($nuevaCarta->texto ?? 'S/T'));
             } else {
                 $juego->estado = 'ended';
             }
 
             $juego->last_turn_at = now();
+            $juego->load('anillo'); // Forzar carga del nuevo nombre del anillo
             $juego->save();
-
+            $juego->load('anillo');
+            
             $this->broadcastState($juego);
 
             return $juego;
@@ -126,7 +135,9 @@ class GameFlowService
      */
     protected function selectNextActiveSector(Juego $juego)
     {
-        $clockwiseOrder = ['textil', 'ciencia', 'tech', 'primario', 'publico', 'ciudadania'];
+        // Orden real del tablero (Empezando desde arriba en sentido horario)
+        // Público (Top) -> Ciudadanía (Right) -> Textil (Bottom-Right) -> Ciencia (Bottom-Left) -> Tech (Left) -> Primario (Top-Left)
+        $clockwiseOrder = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
         
         $rolesAsignadosSlugs = DB::table('juego_participante')
             ->join('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
@@ -172,6 +183,8 @@ class GameFlowService
         $carta = Carta::find($juego->current_carta_id);
         $challengeData = $this->formatChallenge($carta, $juego);
         $challengeData['activeSectorId'] = $activeSectorSlug;
+        $challengeData['anillo_id']      = $juego->anillo_id;
+        $challengeData['visual_phase']   = (int)ceil($juego->current_turn / 6);
 
         if (!empty($turnResults)) {
             TurnResultBroadcast::dispatch($juego->room_code, $turnResults);
@@ -185,7 +198,7 @@ class GameFlowService
             $carta ? ($carta->tiempo ?? 90) : 0,
             $juego->current_turn,
             $juego->temperatura,
-            collect($turnResults)->where('correct', true)->count() > 0 // lastTurnCorrect
+            collect($turnResults)->where('correct', true)->count() > 0
         );
     }
 
@@ -301,6 +314,17 @@ class GameFlowService
                 ->where('rol_id',          $participacion->rol_id)
                 ->update(['eco_fichas' => $nuevasFichas, 'puntuacion' => $nuevaPuntuacion]);
 
+            // Actualizar temperatura global
+            if ($carta->tipo === 'evento') {
+                $juego->temperatura += ($carta->cambio_temp ?? 0);
+            } else {
+                if ($esCorrecto) {
+                    $juego->temperatura = max(0, $juego->temperatura - 0.1);
+                } else {
+                    $juego->temperatura += 0.15;
+                }
+            }
+
             $feedbackMap[$participacion->participante_id] = [
                 'correct' => $esCorrecto,
                 'message' => $mensaje,
@@ -309,6 +333,7 @@ class GameFlowService
             ];
         }
 
+        $juego->save();
         return $feedbackMap;
     }
 
@@ -321,16 +346,21 @@ class GameFlowService
     {
         if (!$carta) return [];
         $pregunta = $carta->preguntas->first();
+        $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
+        
         return [
-            'id' => "T{$juego->current_turn}-C" . ($carta->carta_id ?? 0),
+            'id' => $carta->carta_id ?? 0,
             'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
-            'description' => $pregunta ? '' : $carta->texto, // Si hay pregunta, el título ya la muestra.
+            'description' => $pregunta ? '' : $carta->texto,
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
+            'anillo_id' => $juego->anillo_id,
             'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
-            'time' => $carta->tiempo ?? 20,
+            'time' => $carta->tiempo ?? 30,
             'puntos' => $carta->puntos,
             'penalizacion' => $carta->penalizacion,
+            'activeSectorId' => $activeRol ? $activeRol->slug : null,
+            'turn' => (($juego->current_turn - 1) % 6) + 1,
         ];
     }
 }

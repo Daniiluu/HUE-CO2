@@ -8,6 +8,7 @@ import axios from 'axios';
  */
 export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sectors, myParticipantId) {
     const { setTimeLeft, setIsPaused } = useGame();
+    console.log("[HUE-CO2] Hook cargado. setTimeLeft disponible:", typeof setTimeLeft === 'function');
     
     // 1. Conexión WebSocket
     const { isConnected, gameState: serverGameState, chatMessages: serverChat, sendChatMessage } = useGameChannel(roomCode, 'player', myPlayerName);
@@ -16,6 +17,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     const [votedChallengeId, setVotedChallengeId] = useState(null);
     const [lastFeedback, setLastFeedback] = useState(null);
     const [localMessages, setLocalMessages] = useState([{ id: 1, user: 'Sistema', text: '¡Conexión establecida!', type: 'system' }]);
+    const [isSending, setIsSending] = useState(false);
 
     // 3. Cálculos derivados (Memoized para rendimiento)
     const currentChallenge = useMemo(() => serverGameState?.challenge || initialChallenge, [serverGameState?.challenge, initialChallenge]);
@@ -42,28 +44,42 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
 
     // 4. Efectos de sincronización
     useEffect(() => {
-        if (serverGameState?.challenge?.time) {
-            setTimeLeft(serverGameState.challenge.time);
+        const state = serverGameState?.state;
+        
+        if (state === 'challenge' || state === 'playing') {
+            setIsPaused(false);
+            // Resetear el reloj con el tiempo de la carta (siempre, no solo si existe)
+            setTimeLeft(serverGameState?.challenge?.time ?? 30);
+        } else if (state === 'results' || state === 'lobby') {
+            setIsPaused(true);
         }
-    }, [currentChallenge?.id, serverGameState?.challenge?.time]);
 
-    useEffect(() => {
-        const isLobby = serverGameState?.state === 'lobby';
-        setIsPaused(isLobby);
-    }, [serverGameState?.state]);
-
-    // 4.5 Auto-Fallo por Tiempo Agotado
-    const { timeLeft } = useGame();
-    useEffect(() => {
-        if (timeLeft === 0 && serverGameState?.state !== 'lobby' && isMyTurn && !hasVoted) {
-            console.log("[useOnlineGameState] Tiempo agotado. Enviando fallo automático...");
-            handleVote(null);
+        // Auto-avance desde Resultados al siguiente Reto (Solo modo Online puro)
+        if (state === 'results' && !roomCode.startsWith('LOCAL_')) {
+            // El anfitrión se encarga de avanzar tras 4 segundos de feedback
+            if (normalize(myPlayerName) === 'anfitrion') {
+                const timer = setTimeout(() => {
+                    console.log("[HUE-CO2] Auto-avanzando desde Resultados...");
+                    axios.post(`/api/game/${roomCode}/advance`).catch(e => console.error(e));
+                }, 4500);
+                return () => clearTimeout(timer);
+            }
         }
-    }, [timeLeft, isMyTurn, hasVoted, serverGameState?.state]);
+    }, [currentChallenge?.id, serverGameState?.state, myPlayerName, roomCode]);
+
+    // Resetear estados locales cuando cambia el reto O el turno
+    useEffect(() => {
+        if (currentChallenge?.id || serverGameState?.turnNumber) {
+            setVotedChallengeId(null);
+            setLastFeedback(null);
+            setIsSending(false);
+        }
+    }, [currentChallenge?.id, serverGameState?.turnNumber]);
 
     // 5. Acciones
     const handleVote = async (answer) => {
-        if (hasVoted || !isMyTurn) return;
+        if (hasVoted || !isMyTurn || isSending) return;
+        setIsSending(true);
 
         let cleanAnswer = answer;
         if (answer && typeof answer === 'object' && answer.target) {
@@ -81,10 +97,19 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             
             setVotedChallengeId(currentChallenge?.id);
             setLastFeedback(response.data.is_correct);
+
+            // Si es online puro (sin LocalDisplayBoard manejando el avance), avanzamos el turno.
+            if (!roomCode.startsWith('LOCAL_')) {
+                setTimeout(() => {
+                    axios.post(`/api/game/${roomCode}/advance`).catch(e => console.error(e));
+                }, 2500);
+            }
+
             return response.data;
         } catch (error) {
             console.error("[useOnlineGameState] Error al votar:", error);
-            throw error;
+        } finally {
+            setIsSending(false);
         }
     };
 

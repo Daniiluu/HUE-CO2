@@ -38,7 +38,7 @@ class GameController extends Controller
             'sector_id'   => 'required|string',
             'player_name' => 'required|string|max:50',
             'answer'      => 'nullable',
-            'type'        => 'required|in:options,slider,validate',
+            'type'        => 'required|in:options,slider,validate,open',
             'participant_id' => 'nullable|integer',
         ]);
 
@@ -81,19 +81,12 @@ class GameController extends Controller
             type:       $validated['type']
         );
 
-        // --- AVANCE AUTOMÁTICO REFORZADO ---
-        // Forzamos el avance para que la partida no se bloquee bajo ningún concepto
+        // Avanzar al estado 'results' (mostrará feedback al jugador)
+        // El siguiente avance a 'challenge' lo hará el auto-advance del frontend tras 4.5s
         try {
-            // 1. Pasar a 'results'
             $this->gameFlow->advanceTurn($juego);
-            $juego->refresh();
-            
-            // 2. Saltar directamente al siguiente reto ('playing')
-            if ($juego->estado === 'results') {
-                $this->gameFlow->advanceTurn($juego);
-            }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en auto-avance: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en avance tras voto: " . $e->getMessage());
         }
 
         return response()->json([
@@ -169,11 +162,6 @@ class GameController extends Controller
         // el servicio GameFlowService se encargará de repartir los roles automáticamente
         // al llamar a advanceTurn() por primera vez.
         
-        if ($juego->estado === 'lobby') {
-            $juego->estado = 'playing';
-            $juego->save();
-        }
-
         // Avanzar el juego (si es el primer avance, GameFlowService inicializará los roles)
         $this->gameFlow->advanceTurn($juego);
         $juego->refresh();

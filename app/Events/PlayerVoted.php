@@ -43,9 +43,4 @@ class PlayerVoted implements ShouldBroadcast
             new Channel("game.{$this->roomCode}"),
         ];
     }
-
-    public function broadcastAs(): string
-    {
-        return 'player.voted';
-    }
 }

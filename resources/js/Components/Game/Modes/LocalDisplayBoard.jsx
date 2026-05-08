@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import GameClock from '../UI/GameClock';
 import { Clock, LogOut, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
 import OrbitalBoard from '../UI/OrbitalBoard';
 import GlobalThermometer from '../UI/GlobalThermometer';
@@ -38,12 +39,7 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
     }, [challenge]);
 
     // ── Temporizador Automático ──────────────────────────────────────────
-    useEffect(() => {
-        if (timeLeft === 0 && activeChallenge?.type !== 'waiting') {
-            console.log('[HUE-CO2] Tiempo agotado. Avanzando turno...');
-            handleAdvance();
-        }
-    }, [timeLeft]);
+    // El auto-avance por tiempo ahora se gestiona desde el componente GameClock
 
     // Cuando el servidor cambia el estado del juego, actualizar nuestra vista
     useEffect(() => {
@@ -139,13 +135,13 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
 
                     {/* Tiempo y Salir */}
                     <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-3 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl shadow-sm border border-slate-100">
+                        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
                             <Clock className="w-4 h-4 text-slate-300" />
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Tiempo</span>
-                                <span className={`font-black text-xl tabular-nums leading-tight ${timeLeft < 30 ? 'text-rose-500 animate-pulse' : 'text-slate-800'}`}>
-                                    {Math.floor(timeLeft / 60)}:{timeLeft % 60 < 10 ? '0' : ''}{timeLeft % 60}
-                                </span>
+                            <div className="flex flex-col items-end">
+                                <GameClock 
+                                    isActive={challenge?.type !== 'waiting'} 
+                                    onTimeout={handleAdvance} 
+                                />
                             </div>
                         </div>
                         <button className="bg-white p-3 rounded-xl border border-slate-100 text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
@@ -168,6 +164,7 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                         sectors={displaySectors} 
                         turnNumber={turnNumber} 
                         activeSectorId={activeSectorId}
+                        visualPhase={visualPhase}
                     />
                 </div>
 

@@ -17,13 +17,18 @@ export function GameProvider({ children, initialTime = 105, playerStats = {} }) 
     const [sectorStates, setSectorStates] = useState(playerStats);
     const [isPaused, setIsPaused] = useState(false);
 
-    // Timer logic
+    // Timer logic estable
     useEffect(() => {
+        let timer = null;
         if (timeLeft > 0 && !isPaused) {
-            const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-            return () => clearInterval(timer);
+            timer = setInterval(() => {
+                setTimeLeft(prev => Math.max(0, prev - 1));
+            }, 1000);
         }
-    }, [timeLeft, isPaused]);
+        return () => {
+            if (timer) clearInterval(timer);
+        };
+    }, [isPaused, timeLeft === 0]); // Solo se reinicia si cambia la pausa o si el tiempo llega a cero
 
     const value = {
         timeLeft,

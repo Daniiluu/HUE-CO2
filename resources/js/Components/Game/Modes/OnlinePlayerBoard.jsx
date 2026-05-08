@@ -6,6 +6,7 @@ import { useOnlineGameState } from '../../../hooks/useOnlineGameState';
 import ChallengeCard from '../UI/ChallengeCard';
 import GlobalThermometer from '../UI/GlobalThermometer';
 import OrbitalBoard from '../UI/OrbitalBoard';
+import GameClock from '../UI/GameClock';
 
 const figmaColors = {
     'ciencia':    { bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', iconClass: 'text-[#9640FF]' },
@@ -28,7 +29,7 @@ const getRoleIcon = (iconName, id) => {
     return icons[id] || icons[iconName] || <Hexagon className="w-full h-full" strokeWidth={2.5} />;
 };
 
-export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myParticipantId, myPlayerName, turnNumber }) {
+export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myParticipantId, myPlayerName, turnNumber, myRoles = [], visualPhase = 1 }) {
     const { intensity, setIntensity, timeLeft } = useGame();
     const [chatInput, setChatInput] = useState('');
 
@@ -45,7 +46,8 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
     const challengeWithTurn = {
         ...currentChallenge,
         turn: `${relativeTurn} / 6`,
-        ring: currentChallenge?.ring || 'Anillo Actual'
+        ring: currentChallenge?.ring || serverGameState?.challenge?.ring || 'Anillo Actual',
+        anillo_id: currentChallenge?.anillo_id || serverGameState?.anillo_id || serverGameState?.challenge?.anillo_id || 1
     };
 
     const allMessages = [...localMessages, ...serverChat].sort((a, b) => a.id - b.id);
@@ -65,6 +67,13 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
     const currentDisplayRole = isMyTurn ? sectors.find(s => s.id === currentChallenge?.activeSectorId) : (myAssignedRoles[0] || sectors[0]);
     const theme = figmaColors[currentDisplayRole?.id] || figmaColors['tech'];
 
+    // Sincronizar temperatura global desde el servidor
+    useEffect(() => {
+        if (serverGameState?.temperature !== undefined) {
+            setIntensity(serverGameState.temperature);
+        }
+    }, [serverGameState?.temperature]);
+
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans overflow-hidden relative">
             <AnimatePresence>
@@ -81,14 +90,10 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
                 </div>
 
                 <div className="flex items-center gap-6">
-                    {/* CRONÓMETRO VISUAL */}
-                    <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border-2 transition-all shadow-sm
-                        ${timeLeft <= 10 ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                        <Clock size={20} className={timeLeft <= 10 ? 'text-red-500' : 'text-slate-400'} />
-                        <span className="text-2xl font-black tabular-nums">
-                            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-                        </span>
-                    </div>
+                    <GameClock 
+                        isActive={(currentChallenge?.type === 'validate' ? !isMyTurn : isMyTurn) && !hasVoted && serverGameState?.state === 'challenge'} 
+                        onTimeout={() => handleVote(null)} 
+                    />
 
                     <button onClick={() => window.location.reload()} className="p-3 rounded-2xl bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all">
                         <LogOut size={20} />
@@ -99,7 +104,11 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
             {/* MAIN CONTENT */}
             <main className="flex-1 min-h-0 w-full max-w-[1750px] mx-auto px-8 relative z-10 flex items-center justify-between gap-6">
                 <GlobalThermometer temperature={intensity} />
-                <OrbitalBoard sectors={sectors} activeSectorId={currentChallenge?.activeSectorId} />
+                <OrbitalBoard 
+                    sectors={sectors} 
+                    activeSectorId={currentChallenge?.activeSectorId} 
+                    visualPhase={currentChallenge?.visual_phase || visualPhase}
+                />
                 
                 <div className="relative">
                     <ChallengeCard
@@ -109,7 +118,7 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
                         onApply={handleVote}
                         sectorColor={currentDisplayRole?.color || 'blue'}
                         isCompact={true}
-                        readOnly={hasVoted || !isMyTurn}
+                        readOnly={hasVoted || (currentChallenge?.type === 'validate' ? isMyTurn : !isMyTurn)}
                     />
                     {!isMyTurn && <TurnIndicator name={activePlayerName} />}
                 </div>

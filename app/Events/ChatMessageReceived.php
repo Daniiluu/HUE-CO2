@@ -37,12 +37,4 @@ class ChatMessageReceived implements ShouldBroadcast
             new Channel('game.' . $this->roomCode),
         ];
     }
-
-    /**
-     * Nombre del evento en el cliente.
-     */
-    public function broadcastAs(): string
-    {
-        return 'chat.message';
-    }
 }

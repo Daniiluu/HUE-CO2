@@ -37,17 +37,17 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         const channelName = `game.${roomCode}`;
 
         channelRef.current = window.Echo.channel(channelName)
-            .listen('.player.voted', (e) => {
+            .listen('PlayerVoted', (e) => {
                 setVotes(prev => ({ ...prev, [e.sectorId]: e.answer }));
             })
-            .listen('.proposal.submitted', (e) => {
+            .listen('ProposalSubmitted', (e) => {
                 setProposal({
                     sectorId:    e.sectorId,
                     playerName:  e.playerName,
                     text:        e.proposalText,
                 });
             })
-            .listen('.game.state.changed', (e) => {
+            .listen('GameStateChanged', (e) => {
                 setGameState(e);
                 // Si el host cambia de reto, limpiar los votos anteriores
                 if (e.state === 'challenge') {
@@ -55,7 +55,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
                     setProposal(null);
                 }
             })
-            .listen('.chat.message', (e) => {
+            .listen('ChatMessageReceived', (e) => {
                 setChatMessages(prev => [...prev, {
                     id: Date.now() + Math.random(),
                     user: e.playerName,
@@ -123,8 +123,8 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         // Hacer un fetch inicial inmediatamente
         fetchState();
 
-        // Luego cada 3 segundos
-        const interval = setInterval(fetchState, 3000);
+        // Luego cada 2 segundos
+        const interval = setInterval(fetchState, 2000);
 
         return () => clearInterval(interval);
     }, [roomCode]);

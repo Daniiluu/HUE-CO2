@@ -10,20 +10,20 @@ export default function GlobalThermometer({ temperature = 0.5 }) {
         <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="w-[4vw] min-w-[50px] h-[60vh] bg-white/80 backdrop-blur-md rounded-full p-2 flex flex-col items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-white shrink-0 z-20"
+            className="w-[4vw] min-w-[50px] h-[60vh] bg-white rounded-full p-2 flex flex-col items-center justify-between shadow-md border border-slate-100 shrink-0 z-20"
         >
             <div className="flex flex-col items-center gap-1 mt-2">
                 <Flame className="text-rose-500 w-8 h-8" strokeWidth={2.5} />
                 <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">+1.0°</span>
             </div>
 
-            <div className="w-10 flex-1 bg-slate-50/50 rounded-full my-4 flex flex-col relative border border-slate-100 overflow-hidden shadow-inner">
+            <div className="w-10 flex-1 bg-slate-50 rounded-full my-4 flex flex-col relative border border-slate-100 overflow-hidden">
                 {/* Llenado reactivo */}
                 <motion.div 
                     initial={{ height: "50%" }}
                     animate={{ height: `${fillPercent}%` }}
                     transition={{ type: "spring", stiffness: 50, damping: 20 }}
-                    className={`absolute bottom-0 left-0 right-0 ${temperature > 0.7 ? 'bg-rose-500' : temperature > 0.2 ? 'bg-amber-400' : 'bg-sky-400'} shadow-[0_0_15px_rgba(0,0,0,0.1)]`}
+                    className={`absolute bottom-0 left-0 right-0 ${temperature > 0.7 ? 'bg-rose-500' : temperature > 0.2 ? 'bg-amber-400' : 'bg-sky-400'}`}
                 />
                 
                 {/* Marcas de medición (4 abajo, 4 arriba) */}
