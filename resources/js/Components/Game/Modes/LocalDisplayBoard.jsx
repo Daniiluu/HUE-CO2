@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, LogOut, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Clock, LogOut, Zap, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react';
 import OrbitalBoard from '../UI/OrbitalBoard';
 import GlobalThermometer from '../UI/GlobalThermometer';
 import ChallengeCard from '../UI/ChallengeCard';
@@ -10,67 +10,16 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNumber = 1, onNextChallenge }) {
+    // 1. Hooks de estado y contexto
     const { timeLeft, setTimeLeft, intensity, setIntensity } = useGame();
-
-    // ── WebSocket: Escuchar eventos de la sala ──────────────────────────────
-    const { votes, proposal, isConnected, gameState: serverGameState } = useGameChannel(roomCode, 'host', 'Pantalla');
-
-    // Cuando llega una propuesta, transformar el reto al modo validate
+    const { votes, proposal, isConnected, gameState: remoteState } = useGameChannel(roomCode, 'host', 'Pantalla');
     const [activeChallenge, setActiveChallenge] = useState(challenge);
-    useEffect(() => {
-        if (proposal) {
-            setActiveChallenge(prev => ({
-                ...prev,
-                type:     'validate',
-                proposal: proposal.text,
-            }));
-        }
-    }, [proposal]);
+    const advancingRef = useRef(false);
 
-    // Sincronizar si el challenge cambia desde el padre (el host avanza de reto)
-    useEffect(() => {
-        if (challenge) {
-            setActiveChallenge(challenge);
-            if (challenge.time) {
-                setTimeLeft(challenge.time);
-            }
-        }
-    }, [challenge]);
-
-    // ── Temporizador Automático ──────────────────────────────────────────
-    useEffect(() => {
-        if (timeLeft === 0 && activeChallenge?.type !== 'waiting') {
-            console.log('[HUE-CO2] Tiempo agotado. Avanzando turno...');
-            handleAdvance();
-        }
-    }, [timeLeft]);
-
-    // Cuando el servidor cambia el estado del juego, actualizar nuestra vista
-    useEffect(() => {
-        if (!serverGameState) return;
-        
-        // Sincronizar temperatura global
-        if (serverGameState.temperature !== undefined) {
-            setIntensity(serverGameState.temperature);
-        }
-    }, [serverGameState]);
-
-    const handleAdvance = async () => {
-        try {
-            if (onNextChallenge) {
-                await onNextChallenge();
-            } else {
-                await axios.post(`/api/game/${roomCode}/advance`);
-            }
-        } catch (error) {
-            console.error('[HUE-CO2] Error al avanzar turno:', error);
-        }
-    };
-
+    // 2. Variables derivadas (Calculadas en cada render)
     const isLocalGame = roomCode && roomCode.startsWith('LOCAL_');
-    const gameState = serverGameState?.state || 'challenge'; // 'challenge' | 'results' | 'ended'
-
-    // Sectores procesados para UI
+    const currentGameState = remoteState?.state || 'challenge'; // 'challenge' | 'results' | 'ended'
+    
     const displaySectors = sectors.map((s) => ({
         ...s,
         hasVoted: !!votes[s.id],
@@ -78,6 +27,63 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
 
     const activeSectorId = activeChallenge?.activeSectorId;
     const activeSector = sectors.find(s => s.id === activeSectorId);
+
+    // 3. Efectos de sincronización
+    useEffect(() => {
+        // Resetear el guard cuando comienza un nuevo reto
+        if (currentGameState === 'challenge') {
+            advancingRef.current = false;
+        }
+    }, [currentGameState]);
+
+    useEffect(() => {
+        if (proposal) {
+            setActiveChallenge(prev => ({
+                ...prev,
+                type: 'validate',
+                proposal: proposal.text,
+            }));
+        }
+    }, [proposal]);
+
+    useEffect(() => {
+        if (challenge) {
+            setActiveChallenge(challenge);
+            if (challenge.time) setTimeLeft(challenge.time);
+        }
+    }, [challenge]);
+
+    useEffect(() => {
+        if (remoteState?.temperature !== undefined) {
+            setIntensity(remoteState.temperature);
+        }
+    }, [remoteState]);
+
+    const handleAdvance = async () => {
+        // Evitar doble llamada al backend
+        if (advancingRef.current) return;
+        advancingRef.current = true;
+        try {
+            let response;
+            if (onNextChallenge) {
+                response = await onNextChallenge();
+            } else {
+                response = await axios.post(`/api/game/${roomCode}/advance`);
+            }
+            // FALLBACK: actualizar temperatura directamente si el WS falla
+            if (response?.data?.juego) {
+                setIntensity(response.data.juego.temperatura);
+            }
+        } catch (error) {
+            console.error('[HUE-CO2] Error al avanzar turno:', error);
+        } finally {
+            // Solo liberar el guard si pasamos a results (no a challenge)
+            // Si pasamos a challenge, el useEffect de arriba lo reseteará
+            setTimeout(() => { advancingRef.current = false; }, 2000);
+        }
+    };
+
+
 
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans p-0 overflow-hidden relative">
@@ -172,9 +178,29 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                     ))}
                 </div>
 
+                {/* BOTÓN: FORZAR RESULTADOS (Solo en modo challenge, para el host) */}
+                <AnimatePresence>
+                    {currentGameState !== 'results' && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute top-2 right-4"
+                        >
+                            <button
+                                onClick={handleAdvance}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-500 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all"
+                                title="Forzar fin de turno (si nadie ha votado)"
+                            >
+                                Forzar Resultados <ChevronRight className="w-3 h-3" />
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* BOTÓN SIGUIENTE (Solo en modo resultados) */}
                 <AnimatePresence>
-                    {gameState === 'results' && (
+                    {currentGameState === 'results' && (
                         <motion.div 
                             initial={{ opacity: 0, y: 50 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -195,7 +221,7 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
 
             {/* OVERLAY DE RESULTADO DE TURNO */}
             <AnimatePresence>
-                {gameState === 'results' && (
+                {currentGameState === 'results' && (
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -205,9 +231,9 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                         <motion.div 
                             initial={{ scale: 0.5, rotate: -5 }}
                             animate={{ scale: 1, rotate: 0 }}
-                            className={`p-16 rounded-[4rem] shadow-2xl flex flex-col items-center gap-6 border-8 ${serverGameState?.lastTurnCorrect ? 'bg-emerald-500 border-emerald-400' : 'bg-rose-600 border-rose-500'}`}
+                            className={`p-16 rounded-[4rem] shadow-2xl flex flex-col items-center gap-6 border-8 ${remoteState?.lastTurnCorrect ? 'bg-emerald-500 border-emerald-400' : 'bg-rose-600 border-rose-500'}`}
                         >
-                            {serverGameState?.lastTurnCorrect ? (
+                            {remoteState?.lastTurnCorrect ? (
                                 <>
                                     <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-inner">
                                         <CheckCircle2 className="w-20 h-20 text-emerald-500" />
@@ -221,7 +247,7 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                                         <AlertTriangle className="w-20 h-20 text-rose-500" />
                                     </div>
                                     <h1 className="text-white text-7xl font-black uppercase tracking-tighter">¡FALLO!</h1>
-                                    <p className="text-rose-100 text-xl font-bold uppercase tracking-widest">+0.15°C A LA TEMPERATURA GLOBAL</p>
+                                    <p className="text-rose-100 text-xl font-bold uppercase tracking-widest">+0.1°C A LA TEMPERATURA GLOBAL</p>
                                 </>
                             )}
                         </motion.div>

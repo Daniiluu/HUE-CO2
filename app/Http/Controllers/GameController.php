@@ -38,7 +38,7 @@ class GameController extends Controller
             'sector_id'   => 'required|string',
             'player_name' => 'required|string|max:50',
             'answer'      => 'required',
-            'type'        => 'required|in:options,slider,validate',
+            'type'        => 'required|in:options,slider,validate,free',
             'participant_id' => 'nullable|integer',
         ]);
 
@@ -63,6 +63,22 @@ class GameController extends Controller
             answer:     $validated['answer'],
             type:       $validated['type']
         );
+
+        // Transicionar a 'results' automáticamente cuando llega el voto decisivo:
+        // - Para questions options/slider: el voto del sector ACTIVO es el decisivo.
+        // - Para preguntas 'free': cualquier voto validador es suficiente para procesar.
+        $juego->refresh();
+        if (in_array($juego->estado, ['playing', 'challenge'])) {
+            $activeRol = DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
+            $activeSectorSlug = $activeRol ? $activeRol->slug : null;
+            $isActiveVote = ($activeSectorSlug === $validated['sector_id']);
+            $isFreeValidatorVote = ($validated['type'] === 'free' || $validated['type'] === 'validate')
+                                   && !$isActiveVote;
+
+            if ($isActiveVote || $isFreeValidatorVote) {
+                $this->gameFlow->transitionToResults($juego);
+            }
+        }
 
         return response()->json([
             'status'   => 'ok',
@@ -141,7 +157,8 @@ class GameController extends Controller
                 'turnNumber' => $juego->current_turn,
                 'sectors' => $sectors,
                 'challenge' => $this->getChallengeData($juego),
-                'temperature' => $juego->temperatura
+                'temperature' => $juego->temperatura,
+                'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false)
             ]
         ]);
     }
@@ -156,23 +173,34 @@ class GameController extends Controller
 
         $pregunta = $carta->preguntas->first();
 
-        // Buscar si hay una propuesta activa para este reto
-        $propuestaActiva = Turno::where([
-            'juego_id' => $juego->juego_id,
-            'carta_id' => $juego->current_carta_id,
-            'participante_id' => DB::table('juego_participante')
-                ->where('juego_id', $juego->juego_id)
-                ->where('rol_id', $juego->current_rol_id)
-                ->value('participante_id')
-        ])->value('resultado');
+        $opciones = $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [];
+        $tipoBase = $pregunta ? $pregunta->tipo_pregunta : 'options';
+
+        // Autocorrección: si dice ser 'options' pero la BD no tiene ninguna opción guardada, forzamos a que sea 'free' (abierta)
+        if ($tipoBase === 'options' && $pregunta && empty($opciones)) {
+            $tipoBase = 'free';
+        }
+
+        // Buscar si hay una propuesta activa para este reto SOLO si el tipo es 'free'
+        $propuestaActiva = null;
+        if ($tipoBase === 'free') {
+            $propuestaActiva = Turno::where([
+                'juego_id' => $juego->juego_id,
+                'carta_id' => $juego->current_carta_id,
+                'participante_id' => DB::table('juego_participante')
+                    ->where('juego_id', $juego->juego_id)
+                    ->where('rol_id', $juego->current_rol_id)
+                    ->value('participante_id')
+            ])->value('resultado');
+        }
 
         $challengeData = [
             'id' => $carta->carta_id,
-            'type' => $propuestaActiva ? 'validate' : ($pregunta ? $pregunta->tipo_pregunta : 'options'),
+            'type' => $propuestaActiva ? 'validate' : $tipoBase,
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
             'description' => $pregunta ? '' : $carta->texto,
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
-            'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
+            'options' => $opciones,
             'proposal' => $propuestaActiva,
             'time' => $carta->tiempo ?? 20,
             'puntos' => $carta->puntos,
@@ -216,6 +244,7 @@ class GameController extends Controller
             'sectors'     => $sectors,
             'challenge'   => $this->getChallengeData($juego),
             'temperature' => $juego->temperatura ?? 0,
+            'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
         ]);
     }
 }

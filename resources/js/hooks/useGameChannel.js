@@ -113,8 +113,8 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         // Hacer un fetch inicial inmediatamente
         fetchState();
 
-        // Luego cada 3 segundos
-        const interval = setInterval(fetchState, 3000);
+        // Luego cada 1 segundo para mayor inmediatez en el tablero
+        const interval = setInterval(fetchState, 1000);
 
         return () => clearInterval(interval);
     }, [roomCode]);

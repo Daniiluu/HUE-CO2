@@ -11,18 +11,31 @@ import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
 // Solo inicializar Echo/Reverb si la clave está configurada.
-// En modo local (una sola pantalla) no se necesita WebSocket.
 const reverbKey = import.meta.env.VITE_REVERB_APP_KEY;
 if (reverbKey) {
-    window.Echo = new Echo({
-        broadcaster: 'reverb',
-        key: reverbKey,
-        wsHost: import.meta.env.VITE_REVERB_HOST,
-        wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
-        wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
-        forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
-        enabledTransports: ['ws', 'wss'],
-    });
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (isLocal) {
+        window.Echo = new Echo({
+            broadcaster: 'reverb',
+            key: reverbKey,
+            wsHost: 'localhost',
+            wsPort: 8080,
+            wssPort: 8080,
+            forceTLS: false,
+            enabledTransports: ['ws', 'wss'],
+            activityTimeout: 10000, 
+            pongTimeout: 5000,
+            unavailable_timeout: 2000, 
+        });
+    } else {
+        // En Ngrok desactivamos Echo para evitar errores rojos en consola.
+        // useGameChannel.js usará polling automáticamente.
+        window.Echo = null;
+    }
+    
+    // Silenciar logs de Pusher en producción/desarrollo para no saturar la consola
+    Pusher.logToConsole = false; 
 } else {
     console.info('[HUE-CO2] Reverb no configurado — modo offline/local.');
 }

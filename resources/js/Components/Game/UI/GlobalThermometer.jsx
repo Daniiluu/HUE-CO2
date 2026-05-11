@@ -26,12 +26,11 @@ export default function GlobalThermometer({ temperature = 0.5 }) {
                     className={`absolute bottom-0 left-0 right-0 ${temperature > 0.7 ? 'bg-rose-500' : temperature > 0.2 ? 'bg-amber-400' : 'bg-sky-400'} shadow-[0_0_15px_rgba(0,0,0,0.1)]`}
                 />
                 
-                {/* Marcas de medición (4 abajo, 4 arriba) */}
                 <div className="absolute inset-0 z-10 pointer-events-none opacity-20">
-                    {[10, 20, 30, 40, 60, 70, 80, 90].map((pos) => (
+                    {[5, 10, 15, 20, 25, 30, 35, 40, 45, 55, 60, 65, 70, 75, 80, 85, 90, 95].map((pos) => (
                         <div 
                             key={pos} 
-                            className="absolute left-1/2 -translate-x-1/2 w-6 h-[2px] rounded-full bg-slate-900"
+                            className={`absolute left-1/2 -translate-x-1/2 h-[1px] bg-slate-900 ${pos % 10 === 0 ? 'w-6 opacity-100' : 'w-3 opacity-50'}`}
                             style={{ bottom: `${pos}%` }}
                         />
                     ))}

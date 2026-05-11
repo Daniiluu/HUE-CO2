@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, Zap, Droplets, Cpu, Shirt, Landmark, FlaskConical,
@@ -135,6 +136,8 @@ export default function MobileController({
         for (const r of safeRoles) {
             await sendVote(answer, challengeType, r.id);
         }
+        // La transición a 'results' la gestiona el backend en /vote automáticamente.
+        // El polling de 1s en useGameChannel detectará el nuevo estado y actualizará la UI.
         setLocalGameState('voted');
     };
 
@@ -156,10 +159,33 @@ export default function MobileController({
         const activeSectorId = safeChallenge.activeSectorId;
         const isMyTurn = !activeSectorId || safeRoles.some(r => r.id === activeSectorId);
 
-        // Si estamos en modo validación, ¡TODOS pueden votar! (excepto el que propuso, que ya está en 'voted')
-        const canVoteNow = challengeType === 'validate' || isMyTurn;
+        // Para preguntas abiertas (free): los OTROS sectores validan, el activo responde en voz alta
+        // Para el resto: solo el sector activo puede responder
+        const isFreeQuestion = challengeType === 'free';
+        const canVoteNow = isFreeQuestion ? !isMyTurn : isMyTurn; // En free, votan los que NO son el activo
 
         if (!canVoteNow && localGameState !== 'voted') {
+            // Mensaje especial para el sector activo en pregunta abierta
+            if (isFreeQuestion && isMyTurn) {
+                return (
+                    <motion.div
+                        key="free-speaker"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-amber-50 border-4 border-amber-300 rounded-[2.5rem] p-10 text-center"
+                    >
+                        <div className="w-20 h-20 bg-amber-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <AlertTriangle className="w-10 h-10 text-amber-600 animate-pulse" />
+                        </div>
+                        <h2 className="text-xl font-black text-amber-800 mb-2 uppercase tracking-widest">¡Es tu turno!</h2>
+                        <h3 className="text-lg font-bold text-amber-700 mb-4">{safeChallenge.title ?? 'Pregunta abierta'}</h3>
+                        <p className="text-amber-600 font-medium">
+                            Responde <strong>en voz alta</strong>. Tus compañeros validarán tu respuesta.
+                        </p>
+                    </motion.div>
+                );
+            }
+            // Mensaje genérico para sectores que no les toca
             return (
                 <motion.div
                     key="waiting-turn"
@@ -274,7 +300,7 @@ export default function MobileController({
                                 return (
                                     <button
                                         key={i}
-                                        onClick={() => handleVote(opt)}
+                                        onClick={() => setSelectedAnswer(opt)}
                                         className={`rounded-2xl overflow-hidden flex flex-col h-[110px] transition-all active:scale-95 border-[3px]
                                             ${isSelected ? `${style.border} ring-4 ring-slate-100` : 'border-[#e7e5e4] hover:border-slate-300'}`}
                                     >
@@ -301,20 +327,20 @@ export default function MobileController({
                     </>
                 )}
 
-                {/* ── Tipo FREE (Pregunta Abierta) (Auto-Evaluación / Consenso del grupo registrado por el sector activo) ── */}
+                {/* ── Tipo FREE: Los OTROS sectores validan la respuesta del sector activo ── */}
                 {challengeType === 'free' && (
                     <>
-                        <p className="text-xs text-[#78716c] font-medium mb-3 leading-relaxed">
-                            Evalúa la respuesta de tu sector
+                        <p className="text-xs text-[#78716c] font-medium mb-2 leading-relaxed">
+                            Valida la respuesta del sector <strong className="uppercase">{safeChallenge.activeSectorId ?? 'activo'}</strong>
                         </p>
-                        <p className="text-[9px] font-black text-[#a8a29e] uppercase tracking-widest text-center mb-3">
-                            Debate con el grupo y marca el resultado acordado.
-                        </p>
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3 mb-4 text-sm font-bold text-amber-800 text-center">
+                            🎤 Escucha su respuesta en voz alta
+                        </div>
                         <div className="space-y-2">
                             {VALIDATE_OPTIONS.map(({ key, icon, label, active }) => (
                                 <button
                                     key={key}
-                                    onClick={() => handleVote(key)}
+                                    onClick={() => setSelectedAnswer(key)}
                                     className={`w-full border-[3px] py-3 rounded-2xl flex items-center justify-center gap-3 font-black text-sm transition-all active:scale-95
                                         ${selectedAnswer === key ? active : 'bg-white border-[#e7e5e4] text-[#78716c] hover:border-slate-300'}`}
                                 >
@@ -322,6 +348,14 @@ export default function MobileController({
                                 </button>
                             ))}
                         </div>
+                        <button
+                            onClick={() => selectedAnswer && handleVote(selectedAnswer)}
+                            disabled={!selectedAnswer}
+                            className={`mt-4 w-full py-3 rounded-2xl font-black transition-all text-sm
+                                ${selectedAnswer ? `${theme.btn} text-white active:scale-95 shadow-md` : 'bg-[#e7e5e4] text-[#a8a29e] cursor-not-allowed'}`}
+                        >
+                            Confirmar Validación
+                        </button>
                     </>
                 )}
 
@@ -395,8 +429,8 @@ export default function MobileController({
     };
 
     return (
-        <div className="min-h-screen bg-[#fafaf9] font-sans text-[#44403c] flex justify-center">
-            <div className="w-full max-w-md bg-[#fafaf9] min-h-screen flex flex-col relative shadow-2xl border-x-4 border-[#e7e5e4]">
+        <div className="h-[100dvh] bg-[#fafaf9] font-sans text-[#44403c] flex justify-center overflow-hidden">
+            <div className="w-full max-w-md bg-[#fafaf9] h-[100dvh] flex flex-col relative shadow-2xl border-x-4 border-[#e7e5e4]">
 
                 {/* ── HEADER Global ── */}
                 <header className="px-5 py-3.5 flex justify-between items-center bg-white border-b-4 border-[#e7e5e4] shrink-0 z-10">

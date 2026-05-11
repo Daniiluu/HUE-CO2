@@ -12,24 +12,48 @@ use Illuminate\Support\Facades\DB;
 class GameFlowService
 {
     /**
-     * Avanza el estado del juego al siguiente paso (Reto -> Resultados -> Siguiente Reto)
+     * Procesa los resultados del turno y transiciona a 'results'.
+     * Llamado SOLO desde el endpoint /vote cuando llega el voto determinante.
+     * Solo actúa si el estado es 'playing' o 'challenge' (idempotente).
+     */
+    public function transitionToResults(Juego $juego): void
+    {
+        if (!in_array($juego->estado, ['playing', 'challenge'])) return;
+
+        DB::transaction(function () use ($juego) {
+            $turnResults = $this->processTurnResults($juego);
+            \Log::info('Turn results in transitionToResults', ['turnResults' => $turnResults]);
+
+            $acierto = collect($turnResults)->where('correct', true)->count() > 0;
+            \Illuminate\Support\Facades\Cache::put('juego_'.$juego->juego_id.'_last_correct', $acierto, 3600);
+
+            $juego->temperatura += $acierto ? -0.1 : 0.1;
+            $juego->estado = 'results';
+            $juego->save();
+
+            $this->broadcastState($juego, $turnResults);
+        });
+    }
+
+    /**
+     * Avanza el estado del juego al siguiente reto (results -> playing).
+     * Llamado SOLO desde el botón "Siguiente Reto" del tablero.
+     * Si por algún motivo se llama en estado playing/challenge, hace FASE A primero.
      */
     public function advanceTurn(Juego $juego)
     {
         return DB::transaction(function () use ($juego) {
             $turnResults = [];
 
-            // ── FASE A: Mostrar Resultados del turno actual ──────────────────
+            // ── FASE A: Fallback si aún no se procesaron resultados ──────────
             if ($juego->estado === 'playing' || $juego->estado === 'challenge') {
                 $turnResults = $this->processTurnResults($juego);
-                
-                // Calcular impacto en temperatura
-                // Si el sector activo acertó, la temperatura baja un poco; si falló o no respondió, sube.
+
                 $acierto = collect($turnResults)->where('correct', true)->count() > 0;
                 if ($acierto) {
-                    $juego->temperatura = max(-1.0, $juego->temperatura - 0.05);
+                    $juego->temperatura -= 0.1;
                 } else {
-                    $juego->temperatura = min(1.0, $juego->temperatura + 0.15);
+                    $juego->temperatura += 0.1;
                 }
 
                 $juego->estado = 'results';
@@ -136,7 +160,7 @@ class GameFlowService
      */
     protected function selectNextActiveSector(Juego $juego)
     {
-        $clockwiseOrder = ['textil', 'ciencia', 'tech', 'primario', 'publico', 'ciudadania'];
+        $clockwiseOrder = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
         
         $rolesAsignadosSlugs = DB::table('juego_participante')
             ->join('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
@@ -183,20 +207,24 @@ class GameFlowService
         $challengeData = $this->formatChallenge($carta, $juego);
         $challengeData['activeSectorId'] = $activeSectorSlug;
 
-        if (!empty($turnResults)) {
-            TurnResultBroadcast::dispatch($juego->room_code, $turnResults);
-        }
+        try {
+            if (!empty($turnResults)) {
+                TurnResultBroadcast::dispatch($juego->room_code, $turnResults);
+            }
 
-        GameStateChanged::dispatch(
-            $juego->room_code,
-            $juego->estado === 'ended' ? 'ended' : ($juego->estado === 'results' ? 'results' : 'challenge'),
-            $challengeData,
-            $sectorsData,
-            $carta ? ($carta->tiempo ?? 90) : 0,
-            $juego->current_turn,
-            $juego->temperatura,
-            collect($turnResults)->where('correct', true)->count() > 0 // lastTurnCorrect
-        );
+            GameStateChanged::dispatch(
+                $juego->room_code,
+                $juego->estado === 'ended' ? 'ended' : ($juego->estado === 'results' ? 'results' : 'challenge'),
+                $challengeData,
+                $sectorsData,
+                $carta ? ($carta->tiempo ?? 90) : 0,
+                $juego->current_turn,
+                $juego->temperatura,
+                collect($turnResults)->where('correct', true)->count() > 0 // lastTurnCorrect
+            );
+        } catch (\Exception $e) {
+            \Log::warning('[HUE-CO2] Error en broadcast: ' . $e->getMessage());
+        }
     }
 
     protected function processTurnResults(Juego $juego)
@@ -223,6 +251,19 @@ class GameFlowService
                 'carta_id'        => $juego->current_carta_id
             ])->first();
 
+            // En preguntas abiertas ('free'), el sector activo no vota, votan los validadores.
+            // Si no hay voto del activo, buscamos cualquier voto emitido en esta ronda por los validadores.
+            if (!$voto && $pregunta && $pregunta->tipo_pregunta === 'free') {
+                $votoValidador = Turno::where([
+                    'juego_id' => $juego->juego_id,
+                    'carta_id' => $juego->current_carta_id
+                ])->whereNotNull('resultado')->first();
+                
+                if ($votoValidador) {
+                    $voto = $votoValidador;
+                }
+            }
+
             $tokensGanados = 0; $puntosGanados = 0; $penalizacion = 0; $esCorrecto = false;
 
             if (!$voto) {
@@ -230,7 +271,7 @@ class GameFlowService
                 $mensaje = '¡Tiempo agotado! -2 EcoFichas';
             } elseif ($pregunta) {
                 if ($pregunta->tipo_pregunta === 'free') {
-                    // El propio sector activo registra el resultado acordado por el grupo
+                    // Procesamos el veredicto del grupo (validadores)
                     $resultado = trim((string) $voto->resultado);
                     if ($resultado === 'valid') {
                         $esCorrecto  = true;
@@ -238,7 +279,8 @@ class GameFlowService
                         $puntosGanados = 1;
                         $mensaje = "¡Respuesta Correcta! +{$tokensGanados} ET";
                     } elseif ($resultado === 'partial') {
-                        $esCorrecto  = true;
+                        // Las parciales ahora NO bajan la temperatura (neutral)
+                        $esCorrecto  = false; 
                         $tokensGanados = (int)ceil(($carta->puntos ?: 2) / 2);
                         $puntosGanados = 1;
                         $mensaje = "Respuesta Parcial. +{$tokensGanados} ET";
@@ -276,6 +318,23 @@ class GameFlowService
                             $mensaje = 'Propuesta rechazada por el grupo.';
                         }
                     }
+                } elseif ($pregunta->tipo_pregunta === 'slider') {
+                    // Lógica para Slider: comprobar si el valor está cerca de la respuesta correcta
+                    $valorElegido = (float) $voto->resultado;
+                    $valorCorrecto = (float) ($pregunta->respuesta_correcta ?? 50);
+                    
+                    // Margen de error del 10%
+                    $margen = 5; 
+                    $esCorrecto = abs($valorElegido - $valorCorrecto) <= $margen;
+
+                    if ($esCorrecto) {
+                        $tokensGanados = $carta->puntos > 0 ? $carta->puntos : 2;
+                        $puntosGanados = 1;
+                        $mensaje = "¡Excelente estimación! +{$tokensGanados} ET";
+                    } else {
+                        $penalizacion = $carta->penalizacion > 0 ? $carta->penalizacion : 1;
+                        $mensaje = "Cerca, pero no. El valor era {$valorCorrecto}.";
+                    }
                 } else {
                     // Preguntas de tipo 'options': comparar con la opción correcta
                     $opcionCorrecta = $pregunta->opciones->where('correcta', 1)->first()
@@ -284,6 +343,13 @@ class GameFlowService
                     $valRecibida = trim((string) $voto->resultado);
                     $valEsperada = trim((string) ($opcionCorrecta->texto ?? ''));
                     $sonIguales  = (strcasecmp($valRecibida, $valEsperada) === 0);
+
+                    \Log::info('Evaluando options', [
+                        'valRecibida' => $valRecibida,
+                        'valEsperada' => $valEsperada,
+                        'sonIguales' => $sonIguales,
+                        'opcionCorrecta' => $opcionCorrecta ? $opcionCorrecta->toArray() : null
+                    ]);
 
                     if ($opcionCorrecta && $sonIguales) {
                         $tokensGanados = $carta->puntos > 0 ? $carta->puntos : 2;
@@ -324,20 +390,46 @@ class GameFlowService
 
     protected function pickRandomCard($anilloId)
     {
-        return Carta::where('anillo_id', $anilloId)->inRandomOrder()->first();
+        return Carta::where('anillo_id', $anilloId)
+            ->where('tipo', 'pregunta')
+            ->inRandomOrder()
+            ->first();
     }
 
     protected function formatChallenge(?Carta $carta, Juego $juego)
     {
         if (!$carta) return [];
         $pregunta = $carta->preguntas->first();
+        
+        $tipoBase = $pregunta ? $pregunta->tipo_pregunta : 'options';
+        $opciones = $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [];
+
+        // Autocorrección de tipo
+        if ($tipoBase === 'options' && $pregunta && empty($opciones)) {
+            $tipoBase = 'free';
+        }
+
+        // Buscar propuesta activa solo si es pregunta abierta
+        $propuestaActiva = null;
+        if ($tipoBase === 'free') {
+            $propuestaActiva = Turno::where([
+                'juego_id' => $juego->juego_id,
+                'carta_id' => $carta->carta_id,
+                'participante_id' => DB::table('juego_participante')
+                    ->where('juego_id', $juego->juego_id)
+                    ->where('rol_id', $juego->current_rol_id)
+                    ->value('participante_id')
+            ])->value('resultado');
+        }
+
         return [
             'id' => $carta->carta_id,
-            'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
+            'type' => $propuestaActiva ? 'validate' : $tipoBase,
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
             'description' => $pregunta ? '' : $carta->texto, // Si hay pregunta, el título ya la muestra.
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
-            'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
+            'options' => $opciones,
+            'proposal' => $propuestaActiva,
             'time' => $carta->tiempo ?? 20,
             'puntos' => $carta->puntos,
             'penalizacion' => $carta->penalizacion,

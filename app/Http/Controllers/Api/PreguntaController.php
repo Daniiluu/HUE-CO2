@@ -52,7 +52,7 @@ class PreguntaController extends Controller
         $anilloNombre = $carta?->anillo?->nombre ?? 'General';
 
         $challenge = [
-            'type'        => $tipo === 'free' ? 'open' : $tipo, // free → open para el frontend
+            'type'        => $tipo, // Mantener el tipo original de la BD (free, options, slider)
             'title'       => $pregunta->texto,
             'description' => $carta?->texto ?? 'Responde a este desafío medioambiental.',
             'sectorName'  => $anilloNombre,
