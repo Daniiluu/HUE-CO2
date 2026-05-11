@@ -28,6 +28,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
     const [votes, setVotes]               = useState({});   // { sectorId: answer }
     const [proposal, setProposal]         = useState(null); // La propuesta activa
     const [gameState, setGameState]       = useState(null); // Último estado del host
+    const [chatMessages, setChatMessages] = useState([]);   // Historial de chat
 
     // ── Suscripción al canal ──────────────────────────────────────────────────
     useEffect(() => {
@@ -36,23 +37,31 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         const channelName = `game.${roomCode}`;
 
         channelRef.current = window.Echo.channel(channelName)
-            .listen('.player.voted', (e) => {
+            .listen('PlayerVoted', (e) => {
                 setVotes(prev => ({ ...prev, [e.sectorId]: e.answer }));
             })
-            .listen('.proposal.submitted', (e) => {
+            .listen('ProposalSubmitted', (e) => {
                 setProposal({
                     sectorId:    e.sectorId,
                     playerName:  e.playerName,
                     text:        e.proposalText,
                 });
             })
-            .listen('.game.state.changed', (e) => {
+            .listen('GameStateChanged', (e) => {
                 setGameState(e);
                 // Si el host cambia de reto, limpiar los votos anteriores
                 if (e.state === 'challenge') {
                     setVotes({});
                     setProposal(null);
                 }
+            })
+            .listen('ChatMessageReceived', (e) => {
+                setChatMessages(prev => [...prev, {
+                    id: Date.now() + Math.random(),
+                    user: e.playerName,
+                    text: e.message,
+                    type: 'user'
+                }]);
             })
             .subscribed(() => {
                 setIsConnected(true);
@@ -73,7 +82,8 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
 
     // ── Polling de respaldo (por si falla WebSockets) ─────────────────────────
     useEffect(() => {
-        if (!roomCode) return;
+        // No hacer polling si no hay código o si es una partida local (no persiste en BD)
+        if (!roomCode || roomCode.startsWith('LOCAL_')) return;
 
         const fetchState = async () => {
             try {
@@ -113,8 +123,13 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         // Hacer un fetch inicial inmediatamente
         fetchState();
 
+<<<<<<< HEAD
         // Luego cada 1 segundo para mayor inmediatez en el tablero
         const interval = setInterval(fetchState, 1000);
+=======
+        // Luego cada 2 segundos
+        const interval = setInterval(fetchState, 2000);
+>>>>>>> 7613fbeb5392c204103e3c3e4bc4274acd0c21c8
 
         return () => clearInterval(interval);
     }, [roomCode]);
@@ -151,13 +166,27 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             console.error('[HUE-CO2] Error al enviar propuesta:', err);
         }
     }, [roomCode, sectorId, playerName, participantId]);
+    
+    const sendChatMessage = useCallback(async (text) => {
+        if (!roomCode || !text.trim()) return;
+        try {
+            await axios.post(`/api/game/${roomCode}/chat`, {
+                player_name: playerName,
+                message:     text,
+            });
+        } catch (err) {
+            console.error('[HUE-CO2] Error al enviar mensaje de chat:', err);
+        }
+    }, [roomCode, playerName]);
 
     return {
         isConnected,
         votes,
         proposal,
         gameState,
+        chatMessages,
         sendVote,
         sendProposal,
+        sendChatMessage,
     };
 }

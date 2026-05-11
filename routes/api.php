@@ -47,6 +47,7 @@ Route::get('/preguntas/random',                 [PreguntaController::class, 'ran
 // ── Rutas de Juego en Tiempo Real (públicas, identificadas por roomCode) ──
 Route::post('/game/{roomCode}/vote',     [GameController::class, 'vote']);
 Route::post('/game/{roomCode}/proposal', [GameController::class, 'proposal']);
+Route::post('/game/{roomCode}/chat',     [GameController::class, 'chat']);
 Route::post('/game/{roomCode}/advance',  [GameController::class, 'advance']);
 Route::get('/juego/{roomCode}/estado',   [GameController::class, 'estado']);
 Route::post('/juegos/join',              [JuegoController::class, 'unirse'])->middleware('throttle:10,1');

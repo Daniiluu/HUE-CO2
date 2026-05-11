@@ -1,8 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, User, Globe, ArrowRight } from 'lucide-react';
+import { ChevronLeft, User, Globe, ArrowRight, UserCircle2 } from 'lucide-react';
 
 export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
+    const [nickname, setNickname] = useState('');
+
+    const handleSelect = (mode) => {
+        if (!nickname.trim()) {
+            alert("Por favor, introduce tu nombre para crear la sala.");
+            return;
+        }
+        onSelectMode(mode, nickname);
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, x: 20, y: 10 }}
@@ -18,17 +28,29 @@ export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
             >
                 <ChevronLeft className="w-4 h-4" /> Atrás
             </button>
-            <h2 className="text-2xl font-black mb-2 text-center text-[#1c1917]">¿Cómo quieres jugar?</h2>
-            <p className="text-center text-[#78716c] text-sm font-medium mb-6 px-4">
-                {isGuest
-                    ? <>Como invitado, el progreso <br /> de esta partida no se guardará.</>
-                    : <>Tu progreso y estadísticas <br /> se guardarán en tu perfil de usuario.</>
-                }
+
+            <h2 className="text-3xl font-black mb-2 text-center text-[#1c1917]">¡Hola, Anfitrión!</h2>
+            <p className="text-center text-[#78716c] text-sm font-medium mb-8 px-4">
+                Introduce tu nombre para que los demás sepan quién manda en la sala.
             </p>
 
-            <div className="space-y-4 mt-6">
+            {/* Input de Nombre */}
+            <div className="relative mb-8 group">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-[#87AF4C] transition-colors">
+                    <UserCircle2 className="w-6 h-6" />
+                </div>
+                <input 
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="Tu nombre o alias..."
+                    className="w-full bg-[#fcfcfb] border-4 border-[#f5f5f4] focus:border-[#87AF4C] rounded-2xl py-4 pl-14 pr-4 font-black text-lg outline-none transition-all placeholder:text-stone-300"
+                />
+            </div>
+
+            <div className="space-y-4">
                 <button
-                    onClick={onSelectMode}
+                    onClick={() => handleSelect('solo')}
                     className="w-full flex items-center justify-between p-6 bg-[#f0fdf4] border-4 border-[#E3EFD2] hover:border-[#87AF4C] rounded-2xl transition-all group"
                 >
                     <div className="flex items-center gap-4 text-left">
@@ -36,23 +58,24 @@ export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
                             <User className="text-[#87AF4C] w-6 h-6" />
                         </div>
                         <div>
-                            <div className="font-black text-[#1c1917]">Modo Local</div>
-                            <div className="text-[10px] text-[#87AF4C] font-bold uppercase tracking-widest mt-1">Una sola pantalla</div>
+                            <div className="font-black text-[#1c1917]">Modo Local / 1 Jugador</div>
+                            <div className="text-[10px] text-[#87AF4C] font-bold uppercase tracking-widest mt-1">Ideal para probar tú solo</div>
                         </div>
                     </div>
                     <ArrowRight className="w-5 h-5 text-[#87AF4C] opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
+
                 <button
-                    onClick={onSelectMode}
-                    className="w-full flex items-center justify-between p-6 bg-[#f5f5f4] border-4 border-transparent hover:border-[#e7e5e4] rounded-2xl transition-all group"
+                    onClick={() => handleSelect('online_selector')}
+                    className="w-full flex items-center justify-between p-6 bg-[#f5f5f4] border-4 border-[#e7e5e4] hover:border-[#1c1917] rounded-2xl transition-all group"
                 >
                     <div className="flex items-center gap-4 text-left">
                         <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
                             <Globe className="text-[#a8a29e] w-6 h-6" />
                         </div>
                         <div>
-                            <div className="font-black text-[#1c1917]">Modo Online</div>
-                            <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-widest mt-1">Varias pantallas</div>
+                            <div className="font-black text-[#1c1917]">Modo Multijugador Online</div>
+                            <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-widest mt-1">Elige de 2 a 6 jugadores</div>
                         </div>
                     </div>
                     <ArrowRight className="w-5 h-5 text-[#a8a29e] opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, User, Users, Crown, Globe } from 'lucide-react';
 
-export function ModeSelectionView({ onBack, onSelectMode, isLoading = false }) {
+export function ModeSelectionView({ onBack, onSelectMode, isLoading = false, hideSolo = false }) {
     return (
         <motion.div 
             initial={{ opacity: 0, x: 20, y: 10 }} 
@@ -21,21 +21,23 @@ export function ModeSelectionView({ onBack, onSelectMode, isLoading = false }) {
             <h2 className="text-4xl font-black mb-2 text-center text-[#1c1917]">¿Cuántos vais a jugar?</h2>
             <p className="text-center text-[#87AF4C] font-medium mb-10">Los 6 sectores siempre estarán presentes. Elige cómo repartirlos.</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <button 
-                    onClick={() => onSelectMode('solo')} 
-                    disabled={isLoading}
-                    className={`bg-white border-4 border-[#e7e5e4] p-6 rounded-[2.5rem] text-left hover:border-[#16a34a] hover:bg-[#f0fdf4] transition-all group shadow-sm hover:shadow-xl flex flex-col items-start h-full ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                    <div className="w-14 h-14 bg-[#16a34a]/10 text-[#16a34a] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform flex-shrink-0">
-                        <User className="w-8 h-8" />
-                    </div>
-                    <h3 className="font-black text-2xl mb-2">1 Jugador</h3>
-                    <p className="text-sm font-bold text-[#a8a29e] uppercase tracking-widest mb-3">Modo Solitario</p>
-                    <p className="text-sm text-[#57534e] leading-relaxed italic">
-                        {isLoading ? 'Creando sala...' : 'Asumes el control total. Liderarás los 6 sectores simultáneamente.'}
-                    </p>
-                </button>
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${hideSolo ? 'lg:grid-cols-3 max-w-3xl mx-auto' : 'lg:grid-cols-4'} gap-4`}>
+                {!hideSolo && (
+                    <button 
+                        onClick={() => onSelectMode('solo')} 
+                        disabled={isLoading}
+                        className={`bg-white border-4 border-[#e7e5e4] p-6 rounded-[2.5rem] text-left hover:border-[#16a34a] hover:bg-[#f0fdf4] transition-all group shadow-sm hover:shadow-xl flex flex-col items-start h-full ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        <div className="w-14 h-14 bg-[#16a34a]/10 text-[#16a34a] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform flex-shrink-0">
+                            <User className="w-8 h-8" />
+                        </div>
+                        <h3 className="font-black text-2xl mb-2">1 Jugador</h3>
+                        <p className="text-sm font-bold text-[#a8a29e] uppercase tracking-widest mb-3">Modo Solitario</p>
+                        <p className="text-sm text-[#57534e] leading-relaxed italic">
+                            {isLoading ? 'Creando sala...' : 'Asumes el control total. Liderarás los 6 sectores simultáneamente.'}
+                        </p>
+                    </button>
+                )}
 
                 <button 
                     onClick={() => onSelectMode('small')} 

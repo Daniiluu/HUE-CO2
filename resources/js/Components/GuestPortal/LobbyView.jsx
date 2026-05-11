@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, User, Play, Clock, Users } from 'lucide-react';
-import axios from 'axios'; // We need axios if we wanted to fetch initial players, but let's just listen
+import { motion } from 'framer-motion';
+import axios from 'axios';
 
-export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelectedPlayers, roomCode }) {
+export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelectedPlayers, roomCode, isHost = false }) {
     console.log('[HUE-CO2] LobbyView Render Props:', { mode, roomCode, selectedPlayers });
 
     const safeRoomCode = String(roomCode || "").replace(/\s/g, '');
@@ -169,14 +170,75 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                     </div>
                 )}
                 {mode === 'solo' && renderSoloLobby()}
-                {mode === 'small' && renderSmallLobby()}
-                {(mode === 'classic' || mode === 'class') && (
-                    <div className="text-center p-12">
-                        <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Clock className="w-8 h-8 text-stone-400 animate-spin" />
+                {(mode === 'small' || mode === 'classic' || mode === 'class') && (
+                    <div className="flex flex-col items-center text-center">
+                        <h3 className="text-2xl font-black mb-6 text-stone-900">
+                            {mode === 'classic' ? 'Modo Clásico (6 Jugadores)' : 
+                             mode === 'class' ? 'Modo Aula Completa' : 
+                             'Pequeño Grupo'}
+                        </h3>
+                        
+                        {/* Indicador de Estado */}
+                        <div className="mb-8 w-full max-w-sm">
+                            <div className="flex items-center justify-between bg-[#f0fdf4] p-5 rounded-3xl border-4 border-[#E3EFD2] shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                        <Users className="w-5 h-5 text-[#87AF4C]" />
+                                    </div>
+                                    <span className="font-black text-stone-700">Participantes</span>
+                                </div>
+                                <div className="text-2xl font-black text-stone-900">
+                                    <span className="text-[#87AF4C]">{connectedPlayers.length}</span>
+                                    <span className="text-stone-300"> / {mode === 'classic' ? 6 : (selectedPlayers || '?')}</span>
+                                </div>
+                            </div>
+                            
+                            {/* Lista de nombres conectados */}
+                            <div className="flex flex-wrap gap-2 mt-4 justify-center">
+                                {connectedPlayers.length > 0 ? (
+                                    connectedPlayers.map((name, i) => (
+                                        <motion.span 
+                                            initial={{ scale: 0.8, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            key={i} 
+                                            className="bg-white border-2 border-stone-100 text-stone-600 px-4 py-2 rounded-2xl text-xs font-black shadow-sm flex items-center gap-2"
+                                        >
+                                            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                                            {name} {i === 0 && <span className="text-[9px] text-stone-400 font-bold ml-1">(HOST)</span>}
+                                        </motion.span>
+                                    ))
+                                ) : (
+                                    <span className="text-stone-400 font-bold text-sm italic">Esperando conexiones...</span>
+                                )}
+                            </div>
                         </div>
-                        <h3 className="text-xl font-bold mb-2">Modo Multijugador</h3>
-                        <p className="text-stone-500">Este modo requiere conexión a servidor para sincronizar jugadores.</p>
+
+                        <div className="mb-8 p-5 bg-amber-50 border-4 border-[#FEF3C7] rounded-3xl flex items-start gap-4 text-left max-w-sm">
+                            <div className="bg-amber-400 text-white p-2 rounded-xl shrink-0 shadow-sm">
+                                <Clock className="w-5 h-5" />
+                            </div>
+                            <p className="text-[12px] text-amber-900 font-bold leading-snug">
+                                Comparte el código superior con los jugadores. En cuanto estéis listos, pulsa el botón para repartir sectores y empezar.
+                            </p>
+                        </div>
+
+                        {isHost ? (
+                            <button
+                                onClick={() => onStartGame({ mode: mode, players: mode === 'classic' ? 6 : selectedPlayers })}
+                                className={`w-full max-w-sm text-white py-5 rounded-[2.5rem] font-black text-xl transition-all flex items-center justify-center gap-3 shadow-lg
+                                    ${connectedPlayers.length > 0 
+                                        ? 'bg-[#1c1917] hover:scale-105 active:scale-95 shadow-stone-200' 
+                                        : 'bg-stone-300 shadow-none cursor-not-allowed opacity-50'}`}
+                            >
+                                {connectedPlayers.length > 0 ? '¡Empezar Partida!' : 'Esperando Jugadores...'} 
+                                {connectedPlayers.length > 0 && <Play className="w-6 h-6 fill-current text-emerald-400" />}
+                            </button>
+                        ) : (
+                            <div className="w-full max-w-sm bg-stone-100 border-4 border-dashed border-stone-200 py-6 rounded-[2.5rem] flex flex-col items-center">
+                                <Clock className="w-8 h-8 text-[#87AF4C] animate-spin mb-3" />
+                                <span className="font-black text-stone-400 uppercase tracking-widest text-sm">Esperando al anfitrión...</span>
+                            </div>
+                        )}
                     </div>
                 )}
                 {!mode && (

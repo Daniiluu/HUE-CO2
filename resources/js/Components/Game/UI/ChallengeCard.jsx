@@ -43,7 +43,7 @@ export default function ChallengeCard({
     if (!challenge || Object.keys(challenge).length === 0) {
         return (
             <div className={`${isCompact ? 'w-[20vw] h-[55vh]' : 'w-[24vw] lg:w-[22vw] h-[65vh]'} bg-white rounded-[2rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 text-center shrink-0`}>
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
                     <Clock className="w-10 h-10 text-slate-300" />
                 </div>
                 <h3 className="text-xl font-black text-slate-400 uppercase tracking-widest mb-2">Esperando Reto</h3>
@@ -54,14 +54,23 @@ export default function ChallengeCard({
         );
     }
 
-    const c = COLOR_MAP[sectorColor] ?? COLOR_MAP.blue;
+    const isEnergyMode = 
+        String(challenge?.ring).toLowerCase().includes('energi') || 
+        challenge?.anillo_id == 2 || 
+        challenge?.anilloId == 2;
+    
+    const energyColor = { base: 'bg-amber-500', text: 'text-amber-600', outline: 'outline-amber-500', gradient: 'from-amber-400/20 to-amber-700/0', focus: 'focus:border-amber-400', sliderColor: '#f59e0b' };
+
+    const c = isEnergyMode ? energyColor : (COLOR_MAP[sectorColor] ?? COLOR_MAP.blue);
     const challengeType = challenge.type ?? 'options'; // options | open | slider | validate
 
     const renderOptionsGrid = () => (
         <div className="flex flex-col h-full mt-auto pb-2">
             <div className={`grid grid-cols-2 ${isCompact ? 'gap-x-2 gap-y-2' : 'gap-x-3 gap-y-4'} w-full flex-grow`}>
                 {challenge.options?.map((opt, idx) => {
-                    const style = OPTION_STYLES[idx];
+                    const originalStyle = OPTION_STYLES[idx];
+                    // Si estamos en modo energía, forzamos el amarillo para todos
+                    const style = isEnergyMode ? { light: 'bg-amber-400', dark: 'bg-amber-600', borderDark: 'border-amber-700', icon: <Zap fill="white" size={24} color="white" /> } : originalStyle;
                     const isSelected = selectedAnswer === opt;
                     return (
                         <div 
@@ -88,7 +97,7 @@ export default function ChallengeCard({
             </div>
             {!readOnly && (
                 <button 
-                    onClick={onApply}
+                    onClick={() => onApply?.(selectedAnswer)}
                     disabled={!selectedAnswer}
                     className={`mt-4 w-full py-3 rounded-xl font-bold uppercase tracking-widest text-white shadow-lg transition-all ${selectedAnswer ? `${c.base} active:scale-95` : 'bg-slate-300 cursor-not-allowed'}`}
                 >
@@ -177,7 +186,7 @@ export default function ChallengeCard({
         <div className="flex flex-col flex-1 h-full pb-2">
             <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-5 mb-4 relative mt-2">
                 <div className={`absolute -top-4 -left-3 bg-white p-1.5 rounded-full border border-slate-200 shadow-sm ${c.text}`}>
-                    <Shirt size={20} />
+                    {isEnergyMode ? <Zap size={20} /> : <Shirt size={20} />}
                 </div>
                 <p className="text-slate-700 font-bold italic text-sm leading-relaxed mt-1">
                     "{challenge.proposal ?? 'El sector propone una medida. Evalúala...'}"
@@ -195,11 +204,18 @@ export default function ChallengeCard({
                             key={key}
                             onClick={() => setSelectedAnswer(key)}
                             className={`w-full border-[2.5px] py-3.5 rounded-2xl flex items-center justify-center gap-3 font-black transition-all shadow-sm active:scale-95
-                                ${selectedAnswer === key ? active : `bg-white border-slate-200 text-slate-500 ${hover}`}`}
+                                ${selectedAnswer === key ? (isEnergyMode ? 'bg-amber-50 border-amber-500 text-amber-800' : active) : `bg-white border-slate-200 text-slate-500 ${hover}`}`}
                         >
                             {icon} {label}
                         </button>
                     ))}
+                    <button 
+                        onClick={() => onApply?.(selectedAnswer)}
+                        disabled={!selectedAnswer}
+                        className={`w-full py-3 mt-4 rounded-xl font-bold uppercase tracking-widest text-white shadow-lg transition-all ${selectedAnswer ? `${c.base} active:scale-95` : 'bg-slate-300 cursor-not-allowed'}`}
+                    >
+                        Confirmar Voto
+                    </button>
                 </div>
             ) : (
                 <div className="flex-1 mt-auto flex items-center justify-center bg-slate-100 rounded-2xl min-h-[80px]">
@@ -230,7 +246,8 @@ export default function ChallengeCard({
                     {/* Header */}
                     <div className={`flex items-center justify-between ${isCompact ? 'mb-3' : 'mb-5'}`}>
                         <div className={`flex items-center gap-2 ${c.text} font-bold text-sm uppercase tracking-wider`}>
-                            <Droplet size={20} strokeWidth={2.5} /> {challenge.sectorName ?? 'Reto del Sector'}
+                            {isEnergyMode ? <Zap size={20} strokeWidth={2.5} /> : <Droplet size={20} strokeWidth={2.5} />} 
+                            {isEnergyMode ? 'ANILLO DE LA ENERGÍA' : (challenge.sectorName ?? 'Reto del Sector')}
                         </div>
                         <div className="px-2.5 py-1 bg-neutral-100 rounded-md border border-stone-200">
                             <span className="text-stone-500 text-[9px] font-bold uppercase tracking-widest">

@@ -40,9 +40,4 @@ class ProposalSubmitted implements ShouldBroadcast
             new Channel("game.{$this->roomCode}"),
         ];
     }
-
-    public function broadcastAs(): string
-    {
-        return 'proposal.submitted';
-    }
 }

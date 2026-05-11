@@ -67,27 +67,53 @@ class GameFlowService
             
             // Inicializar roles si es el primer turno (todos los modos)
             if ($juego->current_turn === 0) {
-                $this->initializeSmallModeRoles($juego);
+                $this->initializeParticipantRoles($juego);
             }
 
             $juego->current_turn += 1;
             
+            // --- ORDEN DE ANILLOS: leer de la BD para no hardcodear IDs ---
+            $order = DB::table('anillos')->orderBy('orden')->pluck('anillo_id')->toArray();
+            $phaseIndex = (int)floor(($juego->current_turn - 1) / 6);
+            
+            \Log::info("[HUE-CO2] Avanzando Turno: {$juego->current_turn} | Fase (anillo): " . ($phaseIndex + 1) . " de " . count($order));
+
+            if ($phaseIndex >= count($order)) {
+                \Log::info("[HUE-CO2] Juego finalizado tras " . $juego->current_turn . " turnos.");
+                $juego->estado = 'ended';
+                $juego->save();
+                $juego->load('anillo');
+                $this->broadcastState($juego);
+                return $juego;
+            }
+
+            $nuevoAnilloId = $order[$phaseIndex];
+            if ($juego->anillo_id !== $nuevoAnilloId) {
+                \Log::info("[HUE-CO2] ¡Cambio de anillo! {$juego->anillo_id} → {$nuevoAnilloId}");
+            }
+            $juego->anillo_id = $nuevoAnilloId;
+            $juego->load('anillo');
+            \Log::info("[HUE-CO2] Anillo activo: {$juego->anillo_id} (" . ($juego->anillo->nombre ?? 'N/A') . ")");
+
             // Rotar al siguiente sector activo
             $this->selectNextActiveSector($juego);
 
-            // Seleccionar nueva carta
-            $nuevaCarta = $this->pickRandomCard($juego->anillo_id);
+            // Seleccionar nueva carta del anillo CALCULADO, sin repetir cartas previas
+            $nuevaCarta = $this->pickRandomCard($juego, $juego->anillo_id);
             
             if ($nuevaCarta) {
                 $juego->current_carta_id = $nuevaCarta->carta_id;
                 $juego->estado = 'playing';
+                \Log::info("[HUE-CO2] Carta elegida: ID {$juego->current_carta_id} | Título: " . ($nuevaCarta->texto ?? 'S/T'));
             } else {
                 $juego->estado = 'ended';
             }
 
             $juego->last_turn_at = now();
+            $juego->load('anillo'); // Forzar carga del nuevo nombre del anillo
             $juego->save();
-
+            $juego->load('anillo');
+            
             $this->broadcastState($juego);
 
             return $juego;
@@ -95,64 +121,41 @@ class GameFlowService
     }
 
     /**
-     * Distribuye roles aleatoriamente entre los participantes de forma EQUITATIVA.
-     * Si hay más roles que jugadores, cada jugador recibe varios roles (lo más igualado posible).
-     * Si hay igual o menos roles que jugadores, cada jugador recibe exactamente 1 rol.
+     * Distribuye los 6 roles de forma aleatoria y equitativa entre los participantes conectados.
      */
-    protected function initializeSmallModeRoles(Juego $juego)
+    protected function initializeParticipantRoles(Juego $juego)
     {
-        // Recargar participantes frescos desde la BD (sin cache pivot)
+        // Recargar participantes frescos desde la BD
         $participantes = $juego->participantes()->distinct()->get();
         $numParticipantes = $participantes->count();
 
         if ($numParticipantes === 0) return;
 
-        // Obtener todos los roles disponibles y mezclarlos aleatoriamente
+        // Obtener los 6 sectores de la base de datos y mezclarlos
         $rolesIds = DB::table('roles')->pluck('rol_id')->shuffle()->values();
         $numRoles = $rolesIds->count();
 
-        // Eliminar asignaciones anteriores para esta partida
+        // Limpiar asignaciones previas para evitar duplicados
         DB::table('juego_participante')->where('juego_id', $juego->juego_id)->delete();
 
         $inserts = [];
 
-        if ($numRoles <= $numParticipantes) {
-            // Menos o igual roles que jugadores: 1 rol por jugador (al azar)
-            $participantesMezclados = $participantes->shuffle();
-            foreach ($rolesIds as $i => $rol_id) {
-                $p = $participantesMezclados[$i];
-                $inserts[] = [
-                    'juego_id'        => $juego->juego_id,
-                    'participante_id' => $p->participante_id,
-                    'rol_id'          => $rol_id,
-                    'eco_fichas'      => 12,
-                    'puntuacion'      => 0,
-                ];
-            }
-        } else {
-            // Más roles que jugadores: repartir equitativamente
-            // Ej: 6 roles, 3 jugadores → 2 roles por jugador
-            // Ej: 6 roles, 4 jugadores → 2 jugadores con 2 roles y 2 con 1 rol
-            foreach ($rolesIds as $i => $rol_id) {
-                $p = $participantes[$i % $numParticipantes];
-                $inserts[] = [
-                    'juego_id'        => $juego->juego_id,
-                    'participante_id' => $p->participante_id,
-                    'rol_id'          => $rol_id,
-                    'eco_fichas'      => 12,
-                    'puntuacion'      => 0,
-                ];
-            }
+        // Reparto equitativo: repartimos los 6 roles entre los N participantes usando el operador modulo
+        foreach ($rolesIds as $i => $rol_id) {
+            $p = $participantes[$i % $numParticipantes];
+            $inserts[] = [
+                'juego_id'        => $juego->juego_id,
+                'participante_id' => $p->participante_id,
+                'rol_id'          => $rol_id,
+                'eco_fichas'      => 12,
+                'puntuacion'      => 0,
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ];
         }
 
         DB::table('juego_participante')->insert($inserts);
         $juego->load('participantes');
-
-        \Log::info('[HUE-CO2] Roles repartidos', [
-            'juego_id' => $juego->juego_id,
-            'jugadores' => $numParticipantes,
-            'roles_asignados' => count($inserts),
-        ]);
     }
 
     /**
@@ -160,6 +163,9 @@ class GameFlowService
      */
     protected function selectNextActiveSector(Juego $juego)
     {
+        // Orden real del tablero (Empezando desde arriba en sentido horario)
+        // Público (Top) -> Ciudadanía (Right) -> Textil (Bottom-Right) -> Ciencia (Bottom-Left) -> Tech (Left) -> Primario (Top-Left)
+        $clockwiseOrder = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
         $clockwiseOrder = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
         
         $rolesAsignadosSlugs = DB::table('juego_participante')
@@ -206,12 +212,24 @@ class GameFlowService
         $carta = Carta::find($juego->current_carta_id);
         $challengeData = $this->formatChallenge($carta, $juego);
         $challengeData['activeSectorId'] = $activeSectorSlug;
+        $challengeData['anillo_id']      = $juego->anillo_id;
+        $challengeData['visual_phase']   = (int)ceil($juego->current_turn / 6);
 
         try {
             if (!empty($turnResults)) {
                 TurnResultBroadcast::dispatch($juego->room_code, $turnResults);
             }
 
+        GameStateChanged::dispatch(
+            $juego->room_code,
+            $juego->estado === 'ended' ? 'ended' : ($juego->estado === 'results' ? 'results' : 'challenge'),
+            $challengeData,
+            $sectorsData,
+            $carta ? ($carta->tiempo ?? 90) : 0,
+            $juego->current_turn,
+            $juego->temperatura,
+            collect($turnResults)->where('correct', true)->count() > 0
+        );
             GameStateChanged::dispatch(
                 $juego->room_code,
                 $juego->estado === 'ended' ? 'ended' : ($juego->estado === 'results' ? 'results' : 'challenge'),
@@ -377,6 +395,17 @@ class GameFlowService
                 ->where('rol_id',          $participacion->rol_id)
                 ->update(['eco_fichas' => $nuevasFichas, 'puntuacion' => $nuevaPuntuacion]);
 
+            // Actualizar temperatura global
+            if ($carta->tipo === 'evento') {
+                $juego->temperatura += ($carta->cambio_temp ?? 0);
+            } else {
+                if ($esCorrecto) {
+                    $juego->temperatura = max(0, $juego->temperatura - 0.1);
+                } else {
+                    $juego->temperatura += 0.15;
+                }
+            }
+
             $feedbackMap[$participacion->participante_id] = [
                 'correct' => $esCorrecto,
                 'message' => $mensaje,
@@ -385,11 +414,31 @@ class GameFlowService
             ];
         }
 
+        $juego->save();
         return $feedbackMap;
     }
 
-    protected function pickRandomCard($anilloId)
+    protected function pickRandomCard(Juego $juego, $anilloId)
     {
+        // Obtener los IDs de las cartas que ya se han jugado en este juego
+        $cartasJugadas = DB::table('turnos')
+            ->where('juego_id', $juego->juego_id)
+            ->whereNotNull('carta_id')
+            ->pluck('carta_id')
+            ->toArray();
+
+        // Elegir una carta del anillo que no se haya jugado
+        $carta = Carta::where('anillo_id', $anilloId)
+            ->whereNotIn('carta_id', $cartasJugadas)
+            ->inRandomOrder()
+            ->first();
+
+        // Si por alguna razón nos quedamos sin cartas, repetimos de las que hay en el anillo
+        if (!$carta) {
+            $carta = Carta::where('anillo_id', $anilloId)->inRandomOrder()->first();
+        }
+
+        return $carta;
         return Carta::where('anillo_id', $anilloId)
             ->where('tipo', 'pregunta')
             ->inRandomOrder()
@@ -400,6 +449,8 @@ class GameFlowService
     {
         if (!$carta) return [];
         $pregunta = $carta->preguntas->first();
+        $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
+        
         
         $tipoBase = $pregunta ? $pregunta->tipo_pregunta : 'options';
         $opciones = $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [];
@@ -423,16 +474,23 @@ class GameFlowService
         }
 
         return [
+            'id' => $carta->carta_id ?? 0,
+            'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
             'id' => $carta->carta_id,
             'type' => $propuestaActiva ? 'validate' : $tipoBase,
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
-            'description' => $pregunta ? '' : $carta->texto, // Si hay pregunta, el título ya la muestra.
+            'description' => $pregunta ? '' : $carta->texto,
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
+            'anillo_id' => $juego->anillo_id,
+            'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
+            'time' => $carta->tiempo ?? 30,
             'options' => $opciones,
             'proposal' => $propuestaActiva,
             'time' => $carta->tiempo ?? 20,
             'puntos' => $carta->puntos,
             'penalizacion' => $carta->penalizacion,
+            'activeSectorId' => $activeRol ? $activeRol->slug : null,
+            'turn' => (($juego->current_turn - 1) % 6) + 1,
         ];
     }
 }
