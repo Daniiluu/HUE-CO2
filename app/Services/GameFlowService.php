@@ -166,7 +166,6 @@ class GameFlowService
         // Orden real del tablero (Empezando desde arriba en sentido horario)
         // Público (Top) -> Ciudadanía (Right) -> Textil (Bottom-Right) -> Ciencia (Bottom-Left) -> Tech (Left) -> Primario (Top-Left)
         $clockwiseOrder = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
-        $clockwiseOrder = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
         
         $rolesAsignadosSlugs = DB::table('juego_participante')
             ->join('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
@@ -220,16 +219,6 @@ class GameFlowService
                 TurnResultBroadcast::dispatch($juego->room_code, $turnResults);
             }
 
-        GameStateChanged::dispatch(
-            $juego->room_code,
-            $juego->estado === 'ended' ? 'ended' : ($juego->estado === 'results' ? 'results' : 'challenge'),
-            $challengeData,
-            $sectorsData,
-            $carta ? ($carta->tiempo ?? 90) : 0,
-            $juego->current_turn,
-            $juego->temperatura,
-            collect($turnResults)->where('correct', true)->count() > 0
-        );
             GameStateChanged::dispatch(
                 $juego->room_code,
                 $juego->estado === 'ended' ? 'ended' : ($juego->estado === 'results' ? 'results' : 'challenge'),
@@ -269,9 +258,8 @@ class GameFlowService
                 'carta_id'        => $juego->current_carta_id
             ])->first();
 
-            // En preguntas abiertas ('free'), el sector activo no vota, votan los validadores.
-            // Si no hay voto del activo, buscamos cualquier voto emitido en esta ronda por los validadores.
-            if (!$voto && $pregunta && $pregunta->tipo_pregunta === 'free') {
+            // Fallback: En preguntas 'free' o 'validate', el resultado puede venir de otros registros de turno
+            if (!$voto && $pregunta && in_array($pregunta->tipo_pregunta, ['free', 'validate'])) {
                 $votoValidador = Turno::where([
                     'juego_id' => $juego->juego_id,
                     'carta_id' => $juego->current_carta_id
@@ -284,7 +272,8 @@ class GameFlowService
 
             $tokensGanados = 0; $puntosGanados = 0; $penalizacion = 0; $esCorrecto = false;
 
-            if (!$voto) {
+            // Verificamos si realmente no hay voto (ni directo ni por validación) o si el resultado está vacío
+            if (!$voto || (isset($voto->resultado) && ($voto->resultado === null || $voto->resultado === ''))) {
                 $penalizacion = 2;
                 $mensaje = '¡Tiempo agotado! -2 EcoFichas';
             } elseif ($pregunta) {
@@ -322,7 +311,8 @@ class GameFlowService
                             if ($v->resultado === 'valid')   $puntosTotales += 1;
                             elseif ($v->resultado === 'partial') $puntosTotales += 0.5;
                         }
-                        $media = $puntosTotales / $votosConsenso->count();
+                        $media = $puntosTotales / $votosConsconsensus = $votosConsenso->count();
+                        $media = $puntosTotales / $votosConsconsensus;
 
                         if ($media >= 0.5) {
                             $esCorrecto  = true;
@@ -439,10 +429,6 @@ class GameFlowService
         }
 
         return $carta;
-        return Carta::where('anillo_id', $anilloId)
-            ->where('tipo', 'pregunta')
-            ->inRandomOrder()
-            ->first();
     }
 
     protected function formatChallenge(?Carta $carta, Juego $juego)
@@ -450,7 +436,6 @@ class GameFlowService
         if (!$carta) return [];
         $pregunta = $carta->preguntas->first();
         $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
-        
         
         $tipoBase = $pregunta ? $pregunta->tipo_pregunta : 'options';
         $opciones = $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [];
@@ -474,16 +459,12 @@ class GameFlowService
         }
 
         return [
-            'id' => $carta->carta_id ?? 0,
-            'type' => $pregunta ? $pregunta->tipo_pregunta : 'options',
             'id' => $carta->carta_id,
             'type' => $propuestaActiva ? 'validate' : $tipoBase,
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
             'description' => $pregunta ? '' : $carta->texto,
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
             'anillo_id' => $juego->anillo_id,
-            'options' => $pregunta ? $pregunta->opciones->pluck('texto')->toArray() : [],
-            'time' => $carta->tiempo ?? 30,
             'options' => $opciones,
             'proposal' => $propuestaActiva,
             'time' => $carta->tiempo ?? 20,

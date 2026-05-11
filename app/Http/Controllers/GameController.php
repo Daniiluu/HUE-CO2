@@ -34,18 +34,31 @@ class GameController extends Controller
      */
     public function vote(Request $request, string $roomCode): JsonResponse
     {
-        $validated = $request->validate([
-            'sector_id'   => 'required|string',
+        \Illuminate\Support\Facades\Log::error('[HUE-CO2] DEBUG: Intento de voto en ' . $roomCode);
+        \Illuminate\Support\Facades\Log::error('[HUE-CO2] DEBUG: Payload: ' . json_encode($request->all()));
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'sector_id'   => 'nullable|string',
             'player_name' => 'required|string|max:50',
-<<<<<<< HEAD
-            'answer'      => 'required',
-            'type'        => 'required|in:options,slider,validate,free',
-=======
             'answer'      => 'nullable',
-            'type'        => 'required|in:options,slider,validate,open',
->>>>>>> 7613fbeb5392c204103e3c3e4bc4274acd0c21c8
+            'type'        => 'required|in:options,slider,validate,free,open',
             'participant_id' => 'nullable|integer',
         ]);
+
+        if ($validator->fails()) {
+            \Illuminate\Support\Facades\Log::warning('[HUE-CO2] Error de validación en voto:', $validator->errors()->toArray());
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $validated = $validator->validated();
+        
+        // Fallback for sector_id if missing
+        if (empty($validated['sector_id'])) {
+            $validated['sector_id'] = 'ciudadania';
+        }
 
         $juego = Juego::where('room_code', $roomCode)->firstOrFail();
 
@@ -86,7 +99,6 @@ class GameController extends Controller
             type:       $validated['type']
         );
 
-<<<<<<< HEAD
         // Transicionar a 'results' automáticamente cuando llega el voto decisivo:
         // - Para questions options/slider: el voto del sector ACTIVO es el decisivo.
         // - Para preguntas 'free': cualquier voto validador es suficiente para procesar.
@@ -99,16 +111,12 @@ class GameController extends Controller
                                    && !$isActiveVote;
 
             if ($isActiveVote || $isFreeValidatorVote) {
-                $this->gameFlow->transitionToResults($juego);
+                try {
+                    $this->gameFlow->transitionToResults($juego);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en avance tras voto: " . $e->getMessage());
+                }
             }
-=======
-        // Avanzar al estado 'results' (mostrará feedback al jugador)
-        // El siguiente avance a 'challenge' lo hará el auto-advance del frontend tras 4.5s
-        try {
-            $this->gameFlow->advanceTurn($juego);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en avance tras voto: " . $e->getMessage());
->>>>>>> 7613fbeb5392c204103e3c3e4bc4274acd0c21c8
         }
 
         return response()->json([

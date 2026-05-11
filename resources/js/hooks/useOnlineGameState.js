@@ -82,9 +82,15 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         setIsSending(true);
 
         let cleanAnswer = answer;
-        if (answer && typeof answer === 'object' && answer.target) {
-            cleanAnswer = answer.target.value || answer.target.innerText;
+        // Si el answer viene de un evento (e.g. onChange), extraemos el valor.
+        // Pero si viene de un clic directo con el valor ya resuelto, lo usamos tal cual.
+        if (answer && typeof answer === 'object' && answer.target && 'value' in answer.target) {
+            cleanAnswer = answer.target.value;
+        } else if (answer && typeof answer === 'object' && answer.target && 'innerText' in answer.target) {
+            cleanAnswer = answer.target.innerText;
         }
+
+        console.log("[HUE-CO2] Enviando voto:", { roomCode, cleanAnswer, type: currentChallenge?.type });
 
         try {
             const response = await axios.post(`/api/game/${roomCode}/vote`, {
