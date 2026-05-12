@@ -25,6 +25,7 @@ class GameStateChanged implements ShouldBroadcast
     public int    $turnNumber;
     public float  $temperature; // Temperatura global actual
     public bool   $lastTurnCorrect; // Indica si el último turno procesado fue correcto
+    public ?string $outcome; // 'victory' | 'neutral' | 'defeat' | null
 
     public function __construct(
         string $roomCode,
@@ -34,7 +35,8 @@ class GameStateChanged implements ShouldBroadcast
         int    $timeLeft  = 90,
         int    $turnNumber = 1,
         float  $temperature = 0.0,
-        bool   $lastTurnCorrect = false
+        bool   $lastTurnCorrect = false,
+        ?string $outcome = null
     ) {
         $this->roomCode   = $roomCode;
         $this->state      = $state;
@@ -44,6 +46,7 @@ class GameStateChanged implements ShouldBroadcast
         $this->turnNumber = $turnNumber;
         $this->temperature = $temperature;
         $this->lastTurnCorrect = $lastTurnCorrect;
+        $this->outcome = $outcome;
     }
 
     public function broadcastOn(): array

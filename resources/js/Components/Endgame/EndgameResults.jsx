@@ -67,23 +67,32 @@ export default function EndgameResults({
 }) {
     const current = GAME_RESULTS_CONFIG[outcome];
     const displayTemp = finalTemp ?? current.finalTemp;
-    const displayReduction = reduction ?? current.reduction;
-
+    
     // Stats por defecto si no hay reales
     const defaultSectors = [
         { id: 'ciudadania', name: 'Ciudadanía', role: 'Motor Social', icon: <Users />, border: 'border-violet-300', stat: '42 ET Generados', label: 'Máxima Energía', isMVP: true },
         { id: 'tech', name: 'Gigantes Tech', role: 'El Analista', icon: <Cpu />, border: 'border-indigo-300', stat: '5 Crisis Evitadas', label: 'Mejor Prevención' },
         { id: 'ciencia', name: 'Ciencia e I+D', role: 'El Innovador', icon: <Lightbulb />, border: 'border-cyan-300', stat: '3 Anillos Liderados', label: 'Gran Innovador' },
     ];
-
-    const sectorsToDisplay = playerStats ? playerStats.map(p => ({
+    
+    // Si no viene la reducción, calculamos la variación neta respecto a 0.0
+    const displayReduction = reduction !== undefined ? reduction : (0.0 - displayTemp);
+    
+    // 1. Preparar TODOS los sectores para gráficas
+    const allSectors = playerStats ? playerStats.map(p => ({
         ...p,
         icon: getRoleIcon(p.role),
-        border: 'border-slate-300'
-    })) : defaultSectors;
+        border: 'border-slate-300',
+        points: parseInt(p.stat) || 0
+    })) : defaultSectors.map(s => ({ ...s, points: parseInt(s.stat) || 0 }));
+
+    // 2. Ordenar y filtrar para el Top 3 (Cuadro de Honor)
+    const sectorsToDisplay = [...allSectors]
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 3);
 
     return (
-        <div className="min-h-screen bg-[#fafaf9] font-sans text-[#44403c] flex flex-col items-center overflow-hidden relative p-4 md:p-8">
+        <div className="min-h-full bg-[#fafaf9] font-sans text-[#44403c] flex flex-col items-center overflow-y-visible relative p-4 md:p-8 pb-32">
             {/* Fondo Dinámico Optimizado (Capa de resplandor sobre el bg base) */}
             <div className="absolute inset-0 pointer-events-none z-0 transition-all duration-1000 opacity-40"
                 style={{
@@ -102,7 +111,7 @@ export default function EndgameResults({
                 >
                     <ResultsHeader current={current} />
 
-                    <main className="w-full flex flex-col lg:flex-row gap-8 mt-12 mb-16 relative z-10 h-full">
+                    <main className="w-full flex flex-col lg:flex-row gap-8 mt-12 mb-16 relative z-10">
                         <ThermometerPanel
                             outcome={outcome}
                             current={current}
@@ -112,6 +121,7 @@ export default function EndgameResults({
 
                         <SectorsHall
                             sectors={sectorsToDisplay}
+                            allSectors={allSectors}
                             onBackToPortal={onBackToPortal}
                         />
                     </main>

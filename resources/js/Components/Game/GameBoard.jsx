@@ -7,6 +7,7 @@ import axios from 'axios';
 // Importación de Tableros por Modo
 import LocalDisplayBoard from './Modes/LocalDisplayBoard';
 import OnlinePlayerBoard from './Modes/OnlinePlayerBoard';
+import EndgameResults from '../Endgame/EndgameResults';
 
 export function GameBoard({ 
     players: activePlayers, 
@@ -15,26 +16,35 @@ export function GameBoard({
     myPlayerName,
     myParticipantId,
     turnNumber: parentTurnNumber,
-    roomCode
+    roomCode,
+    gameMode = 'shared'
 }) {
     const [sectorsState, setSectorsState] = useState([]);
     const [currentChallenge, setCurrentChallenge] = useState({});
     const [turnNumber, setTurnNumber] = useState(0);
     const [isLoadingChallenge, setIsLoadingChallenge] = useState(false);
+    const [endData, setEndData] = useState(null);
 
     // ── WebSocket: Escuchar el estado global del juego ────────────────────────
     const { gameState: serverGameState, votes } = useGameChannel(roomCode, 'host', 'Host');
 
     useEffect(() => {
         if (serverGameState) {
-            if (serverGameState.state === 'challenge') {
+            if (serverGameState.state === 'challenge' || serverGameState.state === 'playing' || serverGameState.state === 'results') {
                 setCurrentChallenge(serverGameState.challenge);
                 setTurnNumber(serverGameState.turnNumber);
                 if (serverGameState.sectors) {
                     setSectorsState(serverGameState.sectors);
                 }
+                setEndData(null);
             } else if (serverGameState.state === 'ended') {
-                onEnd(false);
+                const finalData = {
+                    outcome: serverGameState.outcome || 'neutral',
+                    temperature: serverGameState.temperature,
+                    sectors: serverGameState.sectors
+                };
+                setEndData(finalData);
+                onEnd?.(finalData);
             }
         }
     }, [serverGameState]);
@@ -56,13 +66,20 @@ export function GameBoard({
                 const response = await axios.post(`/api/game/${roomCode}/advance`);
                 // Si la respuesta incluye el gameState, actualizamos directamente por si fallan los WebSockets
                 if (response.data && response.data.gameState) {
-                    const { state, challenge, turnNumber: newTurn, sectors: newSectors } = response.data.gameState;
-                    if (state === 'challenge' || state === 'playing') {
+                    const { state, challenge, turnNumber: newTurn, sectors: newSectors, outcome, temperature } = response.data.gameState;
+                    if (state === 'challenge' || state === 'playing' || state === 'results') {
                         setCurrentChallenge(challenge);
                         setTurnNumber(newTurn);
                         if (newSectors) setSectorsState(newSectors);
+                        setEndData(null);
                     } else if (state === 'ended') {
-                        onEnd(false);
+                        const finalData = {
+                            outcome: outcome || 'neutral',
+                            temperature: temperature,
+                            sectors: newSectors
+                        };
+                        setEndData(finalData);
+                        onEnd?.(finalData);
                     }
                 }
             }
@@ -89,6 +106,13 @@ export function GameBoard({
                 if (data.sectors) setSectorsState(data.sectors);
                 if (data.challenge) setCurrentChallenge(data.challenge);
                 if (data.turnNumber) setTurnNumber(data.turnNumber);
+                if (data.state === 'ended') {
+                    setEndData({
+                        outcome: data.outcome || 'neutral',
+                        temperature: data.temperature,
+                        sectors: data.sectors
+                    });
+                }
             })
             .catch(err => console.error('[HUE-CO2] Error al cargar estado inicial:', err));
     }, [roomCode, isLocalGame]);
@@ -114,7 +138,8 @@ export function GameBoard({
             ...getRoleColors(role.id),
             tokens: serverData ? serverData.tokens : 12,
             playerName: serverData ? serverData.playerName : 'Esperando...',
-            hasVoted: !!votes[role.id]
+            hasVoted: !!votes[role.id],
+            points: serverData ? serverData.points : 0
         };
     });
 
@@ -123,6 +148,24 @@ export function GameBoard({
 
     // Renderizado condicional según el modo de juego
     const renderBoard = () => {
+        if (endData) {
+            return (
+                <EndgameResults 
+                    outcome={endData.outcome}
+                    finalTemp={endData.temperature}
+                    playerStats={endData.sectors?.map(s => ({
+                        id: s.id,
+                        name: s.id.charAt(0).toUpperCase() + s.id.slice(1),
+                        role: s.playerName || 'Anónimo',
+                        stat: `${s.points} Puntos`,
+                        label: `${s.tokens} EcoFichas`,
+                        isMVP: s.points === Math.max(...endData.sectors.map(sec => sec.points))
+                    }))}
+                    onBackToPortal={() => window.location.href = '/'}
+                />
+            );
+        }
+
         // Si hay un roomCode real (online), forzamos el tablero interactivo del jugador
         const isOnline = roomCode && !roomCode.startsWith('LOCAL_');
 

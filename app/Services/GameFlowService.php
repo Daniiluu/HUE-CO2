@@ -81,9 +81,18 @@ class GameFlowService
             if ($phaseIndex >= count($order)) {
                 \Log::info("[HUE-CO2] Juego finalizado tras " . $juego->current_turn . " turnos.");
                 $juego->estado = 'ended';
+                
+                // Calcular resultado final basado en la temperatura
+                $outcome = 'victory';
+                if ($juego->temperatura >= 1.4) {
+                    $outcome = 'defeat';
+                } elseif ($juego->temperatura >= 0.8) {
+                    $outcome = 'neutral';
+                }
+                
                 $juego->save();
                 $juego->load('anillo');
-                $this->broadcastState($juego);
+                $this->broadcastState($juego, [], $outcome);
                 return $juego;
             }
 
@@ -189,7 +198,7 @@ class GameFlowService
     /**
      * Centraliza el envío de información a los clientes
      */
-    protected function broadcastState(Juego $juego, array $turnResults = [])
+    protected function broadcastState(Juego $juego, array $turnResults = [], ?string $outcome = null)
     {
         $activeRol = DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
         $activeSectorSlug = $activeRol ? $activeRol->slug : null;
@@ -227,7 +236,8 @@ class GameFlowService
                 $carta ? ($carta->tiempo ?? 90) : 0,
                 $juego->current_turn,
                 $juego->temperatura,
-                collect($turnResults)->where('correct', true)->count() > 0 // lastTurnCorrect
+                collect($turnResults)->where('correct', true)->count() > 0, // lastTurnCorrect
+                $outcome
             );
         } catch (\Exception $e) {
             \Log::warning('[HUE-CO2] Error en broadcast: ' . $e->getMessage());

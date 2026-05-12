@@ -209,7 +209,7 @@ export default function GuestPortal({ pin = null }) {
 
     return (
         <ErrorBoundary>
-        <div className="min-h-screen bg-[#fafaf9] font-sans text-[#44403c] flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors duration-500">
+        <div className="min-h-screen bg-[#fafaf9] font-sans text-[#44403c] flex flex-col items-center justify-center p-6 relative overflow-y-auto transition-colors duration-500">
             <Head title="Portal de Invitado | HUE-CO2" />
 
             {/* Fondo Orgánico Optimizado (Sin blurs pesados) */}
@@ -284,7 +284,7 @@ export default function GuestPortal({ pin = null }) {
 
                 {/* VISTA 5: JUEGO EN CURSO (MANDO O TABLERO) */}
                 {view === 'playing' && (
-                    <div className="fixed inset-0 z-50 bg-white">
+                    <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
                         {roomCode && !roomCode.startsWith('LOCAL_') ? (
                             <GameBoard 
                                 roomCode={roomCode}

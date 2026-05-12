@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Award, ArrowRight } from 'lucide-react';
+import { StatsModal } from './StatsModal';
 
-export default function SectorsHall({ sectors, onBackToPortal }) {
+export default function SectorsHall({ sectors, allSectors, onBackToPortal }) {
+    const [showStats, setShowStats] = useState(false);
     const container = {
         hidden: { opacity: 0 },
         show: {
@@ -68,7 +70,10 @@ export default function SectorsHall({ sectors, onBackToPortal }) {
                 transition={{ delay: 1.8, duration: 0.5 }}
                 className="mt-auto grid grid-cols-2 gap-4 pt-6"
             >
-                <button className="bg-white border-2 border-slate-200 text-[#78716c] py-4 rounded-2xl font-black text-sm hover:border-[#1c1917] hover:text-[#1c1917] transition-all active:scale-95">
+                <button 
+                    onClick={() => setShowStats(true)}
+                    className="bg-white border-2 border-slate-200 text-[#78716c] py-4 rounded-2xl font-black text-sm hover:border-[#1c1917] hover:text-[#1c1917] transition-all active:scale-95"
+                >
                     Ver Gráficas
                 </button>
                 <button 
@@ -78,6 +83,12 @@ export default function SectorsHall({ sectors, onBackToPortal }) {
                     Finalizar <ArrowRight className="w-4 h-4" />
                 </button>
             </motion.div>
+
+            <StatsModal 
+                isOpen={showStats} 
+                onClose={() => setShowStats(false)} 
+                allSectors={allSectors} 
+            />
         </div>
     );
 }
