@@ -111,11 +111,29 @@ export default function GuestPortal({ pin = null }) {
             return;
         }
 
-        // Caso 2: Elige modo Solo (Local)
+        // Caso 2: Elige modo Solo (Local / Un solo jugador)
         if (selectedMode === 'solo') {
             setMode('solo');
             setIsOnlineMode(false);
-            navigateTo('lobby');
+            setIsHost(true); // El jugador local es el host de su propia partida
+            try {
+                const response = await axios.post('/juego/crear', {
+                    modo: 'solo',
+                    anillo_id: 1,
+                    usuario: nickname || myPlayerName || 'Jugador 1'
+                });
+                
+                if (response.data?.juego?.room_code) {
+                    setRoomCode(response.data.juego.room_code);
+                    if (response.data.participante) {
+                        setMyParticipantId(response.data.participante.participante_id);
+                    }
+                    navigateTo('lobby');
+                }
+            } catch (error) {
+                console.error('[HUE-CO2] Error creando partida solo:', error);
+                setJoinError("No se pudo iniciar la partida. Revisa tu conexión.");
+            }
             return;
         }
 

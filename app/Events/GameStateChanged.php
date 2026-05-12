@@ -24,6 +24,8 @@ class GameStateChanged implements ShouldBroadcast
     public int    $timeLeft;  // Segundos restantes del turno
     public int    $turnNumber;
     public float  $temperature; // Temperatura global actual
+    public float  $totalHeating; // Acumulado de calentamiento (+)
+    public float  $totalReduction; // Acumulado de enfriamiento (-)
     public bool   $lastTurnCorrect; // Indica si el último turno procesado fue correcto
     public ?string $outcome; // 'victory' | 'neutral' | 'defeat' | null
 
@@ -35,6 +37,8 @@ class GameStateChanged implements ShouldBroadcast
         int    $timeLeft  = 90,
         int    $turnNumber = 1,
         float  $temperature = 0.0,
+        float  $totalHeating = 0.0,
+        float  $totalReduction = 0.0,
         bool   $lastTurnCorrect = false,
         ?string $outcome = null
     ) {
@@ -45,6 +49,8 @@ class GameStateChanged implements ShouldBroadcast
         $this->timeLeft   = $timeLeft;
         $this->turnNumber = $turnNumber;
         $this->temperature = $temperature;
+        $this->totalHeating = $totalHeating;
+        $this->totalReduction = $totalReduction;
         $this->lastTurnCorrect = $lastTurnCorrect;
         $this->outcome = $outcome;
     }

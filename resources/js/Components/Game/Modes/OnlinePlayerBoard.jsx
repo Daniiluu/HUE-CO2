@@ -7,6 +7,7 @@ import ChallengeCard from '../UI/ChallengeCard';
 import GlobalThermometer from '../UI/GlobalThermometer';
 import OrbitalBoard from '../UI/OrbitalBoard';
 import GameClock from '../UI/GameClock';
+import FeedbackOverlay from '../UI/FeedbackOverlay';
 
 const figmaColors = {
     'ciencia':    { bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', iconClass: 'text-[#9640FF]' },
@@ -150,20 +151,6 @@ function LobbyWaitingScreen({ roomCode }) {
                 SALA: {roomCode}
             </div>
         </div>
-    );
-}
-
-function FeedbackOverlay({ isCorrect }) {
-    return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
-            <div className="absolute inset-0 bg-white/20 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.5, y: 20 }} animate={{ scale: 1, y: 0 }} className={`p-10 rounded-[3rem] shadow-2xl flex flex-col items-center gap-6 border-8 ${isCorrect ? 'bg-[#E2F1C3] border-[#87AF4C]' : 'bg-[#FFC2C2] border-[#D00000]'}`}>
-                {isCorrect ? <CheckCircle2 className="w-24 h-24 text-[#87AF4C]" /> : <X className="w-24 h-24 text-[#D00000]" />}
-                <h3 className={`text-4xl font-black uppercase tracking-tighter ${isCorrect ? 'text-[#658437]' : 'text-[#D00000]'}`}>
-                    {isCorrect ? '¡Correcto!' : '¡Casi!'}
-                </h3>
-            </motion.div>
-        </motion.div>
     );
 }
 
