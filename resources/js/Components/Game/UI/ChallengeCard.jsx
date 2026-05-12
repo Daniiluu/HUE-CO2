@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Star, Hexagon, Heart, Moon, Droplet, Send, CheckCircle2, Minus, X, Shirt, Clock } from 'lucide-react';
+import { Zap, Star, Hexagon, Heart, Moon, Droplet, Send, CheckCircle2, Minus, X, Shirt, Clock, Cpu } from 'lucide-react';
 
 // ─── Constantes Estáticas ────────────────────────────────────────────────────
 // Definidas fuera del componente para que no se recreen en cada render.
@@ -12,6 +12,7 @@ const COLOR_MAP = {
     blue:    { base: 'bg-blue-600',    text: 'text-blue-600',    outline: 'outline-blue-600',    gradient: 'from-blue-400/20 to-cyan-700/0',    focus: 'focus:border-blue-400',    sliderColor: '#2563eb' },
     indigo:  { base: 'bg-indigo-600',  text: 'text-indigo-600',  outline: 'outline-indigo-600',  gradient: 'from-indigo-400/20 to-indigo-700/0', focus: 'focus:border-indigo-400',  sliderColor: '#4f46e5' },
     fuchsia: { base: 'bg-fuchsia-600', text: 'text-fuchsia-600', outline: 'outline-fuchsia-600', gradient: 'from-fuchsia-400/20 to-fuchsia-700/0', focus: 'focus:border-fuchsia-400', sliderColor: '#c026d3' },
+    amber:   { base: 'bg-amber-500',   text: 'text-amber-600',   outline: 'outline-amber-500',   gradient: 'from-amber-400/20 to-amber-700/0',   focus: 'focus:border-amber-400',   sliderColor: '#f59e0b' },
 };
 
 const OPTION_STYLES = [
@@ -54,14 +55,32 @@ export default function ChallengeCard({
         );
     }
 
-    const isEnergyMode = 
-        String(challenge?.ring).toLowerCase().includes('energi') || 
-        challenge?.anillo_id == 2 || 
-        challenge?.anilloId == 2;
-    
-    const energyColor = { base: 'bg-amber-500', text: 'text-amber-600', outline: 'outline-amber-500', gradient: 'from-amber-400/20 to-amber-700/0', focus: 'focus:border-amber-400', sliderColor: '#f59e0b' };
+    // --- CONFIGURACIÓN POR ANILLO ---
+    const ringName = String(challenge?.ring || '').toLowerCase();
+    const ringId = challenge?.anillo_id || challenge?.anilloId;
 
-    const c = isEnergyMode ? energyColor : (COLOR_MAP[sectorColor] ?? COLOR_MAP.blue);
+    const getRingConfig = () => {
+        if (ringName.includes('agua') || ringId == 1) {
+            return { color: COLOR_MAP.blue, icon: <Droplet size={20} strokeWidth={2.5} />, label: 'ANILLO DEL AGUA' };
+        }
+        if (ringName.includes('energi') || ringId == 2) {
+            return { color: COLOR_MAP.amber, icon: <Zap size={20} strokeWidth={2.5} />, label: 'ANILLO DE LA ENERGÍA' };
+        }
+        if (ringName.includes('plastic') || ringId == 3) {
+            return { color: COLOR_MAP.emerald, icon: <Hexagon size={20} strokeWidth={2.5} />, label: 'ANILLO DEL PLÁSTICO' };
+        }
+        if (ringName.includes('pantalla') || ringId == 4) {
+            return { color: COLOR_MAP.violet, icon: <Cpu size={20} strokeWidth={2.5} />, label: 'ANILLO DE PANTALLAS' };
+        }
+        if (ringName.includes('ropa') || ringId == 5) {
+            return { color: COLOR_MAP.rose, icon: <Shirt size={20} strokeWidth={2.5} />, label: 'ANILLO DE LA ROPA' };
+        }
+        // Default
+        return { color: COLOR_MAP[sectorColor] ?? COLOR_MAP.blue, icon: <Droplet size={20} strokeWidth={2.5} />, label: challenge.sectorName ?? 'Reto del Sector' };
+    };
+
+    const ringConfig = getRingConfig();
+    const c = ringConfig.color;
     const challengeType = challenge.type ?? 'options'; // options | open | slider | validate
 
     const renderOptionsGrid = () => (
@@ -69,8 +88,8 @@ export default function ChallengeCard({
             <div className={`grid grid-cols-2 ${isCompact ? 'gap-x-2 gap-y-2' : 'gap-x-3 gap-y-4'} w-full flex-grow`}>
                 {challenge.options?.map((opt, idx) => {
                     const originalStyle = OPTION_STYLES[idx];
-                    // Si estamos en modo energía, forzamos el amarillo para todos
-                    const style = isEnergyMode ? { light: 'bg-amber-400', dark: 'bg-amber-600', borderDark: 'border-amber-700', icon: <Zap fill="white" size={24} color="white" /> } : originalStyle;
+                    // Mantener los iconos originales (Estrella, Hexágono, etc.)
+                    const style = originalStyle;
                     const isSelected = selectedAnswer === opt;
                     return (
                         <div 
@@ -176,7 +195,7 @@ export default function ChallengeCard({
                     onClick={() => onApply?.(intensity)}
                     className={`w-full py-4 ${c.base} text-white rounded-xl font-bold uppercase tracking-widest shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 mt-auto`}
                 >
-                    Aplicar Medida <Zap className="w-5 h-5 text-yellow-300" />
+                    Aplicar Medida {React.cloneElement(ringConfig.icon, { className: "w-5 h-5 text-yellow-300" })}
                 </button>
             )}
         </div>
@@ -186,7 +205,7 @@ export default function ChallengeCard({
         <div className="flex flex-col flex-1 h-full pb-2">
             <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-5 mb-4 relative mt-2">
                 <div className={`absolute -top-4 -left-3 bg-white p-1.5 rounded-full border border-slate-200 shadow-sm ${c.text}`}>
-                    {isEnergyMode ? <Zap size={20} /> : <Shirt size={20} />}
+                    {ringConfig.icon}
                 </div>
                 <p className="text-slate-700 font-bold italic text-sm leading-relaxed mt-1">
                     "{challenge.proposal ?? 'El sector propone una medida. Evalúala...'}"
@@ -204,7 +223,7 @@ export default function ChallengeCard({
                             key={key}
                             onClick={() => setSelectedAnswer(key)}
                             className={`w-full border-[2.5px] py-3.5 rounded-2xl flex items-center justify-center gap-3 font-black transition-all shadow-sm active:scale-95
-                                ${selectedAnswer === key ? (isEnergyMode ? 'bg-amber-50 border-amber-500 text-amber-800' : active) : `bg-white border-slate-200 text-slate-500 ${hover}`}`}
+                                ${selectedAnswer === key ? ((ringId && ringId <= 5) ? 'bg-amber-50 border-amber-500 text-amber-800' : active) : `bg-white border-slate-200 text-slate-500 ${hover}`}`}
                         >
                             {icon} {label}
                         </button>
@@ -246,8 +265,8 @@ export default function ChallengeCard({
                     {/* Header */}
                     <div className={`flex items-center justify-between ${isCompact ? 'mb-3' : 'mb-5'}`}>
                         <div className={`flex items-center gap-2 ${c.text} font-bold text-sm uppercase tracking-wider`}>
-                            {isEnergyMode ? <Zap size={20} strokeWidth={2.5} /> : <Droplet size={20} strokeWidth={2.5} />} 
-                            {isEnergyMode ? 'ANILLO DE LA ENERGÍA' : (challenge.sectorName ?? 'Reto del Sector')}
+                            {ringConfig.icon} 
+                            {ringConfig.label}
                         </div>
                         <div className="px-2.5 py-1 bg-neutral-100 rounded-md border border-stone-200">
                             <span className="text-stone-500 text-[9px] font-bold uppercase tracking-widest">

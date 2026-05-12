@@ -257,6 +257,7 @@ class GameController extends Controller
             'title' => $pregunta ? $pregunta->texto : $carta->texto,
             'description' => $pregunta ? '' : $carta->texto,
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
+            'anillo_id' => $juego->anillo_id,
             'options' => $opciones,
             'proposal' => $propuestaActiva,
             'time' => $carta->tiempo ?? 20,
