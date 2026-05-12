@@ -34,9 +34,6 @@ class GameController extends Controller
      */
     public function vote(Request $request, string $roomCode): JsonResponse
     {
-        \Illuminate\Support\Facades\Log::error('[HUE-CO2] DEBUG: Intento de voto en ' . $roomCode);
-        \Illuminate\Support\Facades\Log::error('[HUE-CO2] DEBUG: Payload: ' . json_encode($request->all()));
-
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'sector_id'   => 'nullable|string',
             'player_name' => 'required|string|max:50',

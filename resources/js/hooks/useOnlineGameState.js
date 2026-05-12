@@ -90,8 +90,6 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             cleanAnswer = answer.target.innerText;
         }
 
-        console.log("[HUE-CO2] Enviando voto:", { roomCode, cleanAnswer, type: currentChallenge?.type });
-
         try {
             const response = await axios.post(`/api/game/${roomCode}/vote`, {
                 sector_id: currentChallenge?.activeSectorId,
