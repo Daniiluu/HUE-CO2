@@ -13,7 +13,7 @@ const SECTOR_CONFIG = {
     ciudadania: { color: '#FF3ADB', bg: 'bg-[#FFC9F2]', border: 'border-[#FF3ADB]', icon: <Users className="w-full h-full" strokeWidth={2.5} /> },
 };
 
-const RING_RADII = [80, 115, 150, 185, 220]; // Radios para los 5 anillos
+const RING_RADII = [220, 185, 150, 115, 80]; // Radios para los 5 anillos, de fuera hacia dentro
 
 export default function OrbitalBoard({ sectors, activeSectorId = null, visualPhase = 1 }) {
 
