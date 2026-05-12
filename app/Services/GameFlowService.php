@@ -27,10 +27,17 @@ class GameFlowService
             $acierto = collect($turnResults)->where('correct', true)->count() > 0;
             \Illuminate\Support\Facades\Cache::put('juego_'.$juego->juego_id.'_last_correct', $acierto, 3600);
 
-            $juego->temperatura += $acierto ? -0.1 : 0.1;
             $juego->estado = 'results';
-            $juego->save();
+            
+            // Verificación de límite de temperatura (GameOver crítico)
+            if ($juego->temperatura >= 1.0) {
+                $juego->estado = 'ended';
+                $juego->save();
+                $this->broadcastState($juego, $turnResults, 'defeat');
+                return;
+            }
 
+            $juego->save();
             $this->broadcastState($juego, $turnResults);
         });
     }
@@ -43,20 +50,27 @@ class GameFlowService
     public function advanceTurn(Juego $juego)
     {
         return DB::transaction(function () use ($juego) {
+            // Si el juego ya terminó (por límite de temperatura o turnos), no permitir avanzar
+            if ($juego->estado === 'ended') {
+                return $juego;
+            }
+
             $turnResults = [];
 
             // ── FASE A: Fallback si aún no se procesaron resultados ──────────
             if ($juego->estado === 'playing' || $juego->estado === 'challenge') {
                 $turnResults = $this->processTurnResults($juego);
 
-                $acierto = collect($turnResults)->where('correct', true)->count() > 0;
-                if ($acierto) {
-                    $juego->temperatura -= 0.1;
-                } else {
-                    $juego->temperatura += 0.1;
+                $juego->estado = 'results';
+
+                // Verificación de límite de temperatura (GameOver crítico)
+                if ($juego->temperatura >= 1.0) {
+                    $juego->estado = 'ended';
+                    $juego->save();
+                    $this->broadcastState($juego, $turnResults, 'defeat');
+                    return $juego;
                 }
 
-                $juego->estado = 'results';
                 $juego->save();
 
                 $this->broadcastState($juego, $turnResults);
@@ -284,8 +298,10 @@ class GameFlowService
 
             // Verificamos si realmente no hay voto (ni directo ni por validación) o si el resultado está vacío
             if (!$voto || (isset($voto->resultado) && ($voto->resultado === null || $voto->resultado === ''))) {
+                \Log::info("[HUE-CO2] Time Over detectado para el sector activo. Aplicando penalización.");
                 $penalizacion = 2;
                 $mensaje = '¡Tiempo agotado! -2 EcoFichas';
+                $esCorrecto = false; // Aseguramos que se cuente como fallo para subir temperatura
             } elseif ($pregunta) {
                 if ($pregunta->tipo_pregunta === 'free') {
                     // Procesamos el veredicto del grupo (validadores)
@@ -321,8 +337,8 @@ class GameFlowService
                             if ($v->resultado === 'valid')   $puntosTotales += 1;
                             elseif ($v->resultado === 'partial') $puntosTotales += 0.5;
                         }
-                        $media = $puntosTotales / $votosConsconsensus = $votosConsenso->count();
-                        $media = $puntosTotales / $votosConsconsensus;
+                        $totalVotos = $votosConsenso->count();
+                        $media = $puntosTotales / ($totalVotos ?: 1);
 
                         if ($media >= 0.5) {
                             $esCorrecto  = true;
@@ -397,12 +413,16 @@ class GameFlowService
 
             // Actualizar temperatura global
             if ($carta->tipo === 'evento') {
-                $juego->temperatura += ($carta->cambio_temp ?? 0);
+                $cambio = ($carta->cambio_temp ?? 0);
+                $juego->temperatura += $cambio;
+                \Log::info("[HUE-CO2] Cambio Temp (Evento): {$cambio} | Total: {$juego->temperatura}");
             } else {
                 if ($esCorrecto) {
-                    $juego->temperatura = max(0, $juego->temperatura - 0.1);
+                    $juego->temperatura -= 0.1;
+                    \Log::info("[HUE-CO2] Cambio Temp (Acierto/Evento OK): -0.1 | Total: {$juego->temperatura}");
                 } else {
-                    $juego->temperatura += 0.15;
+                    $juego->temperatura += 0.1;
+                    \Log::info("[HUE-CO2] Cambio Temp (Fallo/Timeout): +0.1 | Total: {$juego->temperatura}");
                 }
             }
 

@@ -20,7 +20,6 @@ export default function GlobalThermometer({ temperature = 0.5 }) {
             <div className="w-10 flex-1 bg-slate-50 rounded-full my-4 flex flex-col relative border border-slate-100 overflow-hidden">
                 {/* Llenado reactivo */}
                 <motion.div 
-                    initial={{ height: "50%" }}
                     animate={{ height: `${fillPercent}%` }}
                     transition={{ type: "spring", stiffness: 50, damping: 20 }}
                     className={`absolute bottom-0 left-0 right-0 ${temperature > 0.7 ? 'bg-rose-500' : temperature > 0.2 ? 'bg-amber-400' : 'bg-sky-400'}`}
