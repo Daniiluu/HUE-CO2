@@ -105,8 +105,16 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
             {/* MAIN CONTENT */}
             <main className="flex-1 min-h-0 w-full max-w-[1750px] mx-auto px-8 relative z-10 flex items-center justify-between gap-6">
                 <GlobalThermometer temperature={intensity} />
+                {/* Tablero Orbital - Sincronizado con el servidor */}
                 <OrbitalBoard 
-                    sectors={sectors} 
+                    sectors={sectors.map(s => {
+                        const serverSector = (serverGameState?.sectors || []).find(ss => ss.id === s.id);
+                        return {
+                            ...s,
+                            points: serverSector?.points ?? s.points,
+                            ringResults: serverSector?.ringResults ?? []
+                        };
+                    })} 
                     activeSectorId={currentChallenge?.activeSectorId} 
                     visualPhase={currentChallenge?.visual_phase || visualPhase}
                 />

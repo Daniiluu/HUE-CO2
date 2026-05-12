@@ -222,12 +222,26 @@ class GameFlowService
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
             ->get()
-            ->map(function ($row) {
+            ->map(function ($row) use ($juego) {
+                // Calcular qué anillos ha completado este participante
+                $turns = DB::table('turnos')
+                    ->join('cartas', 'turnos.carta_id', '=', 'cartas.carta_id')
+                    ->where('turnos.juego_id', $juego->juego_id)
+                    ->where('turnos.participante_id', $row->participante_id)
+                    ->pluck('turnos.is_correct', 'cartas.anillo_id')
+                    ->toArray();
+
+                $ringResults = [];
+                for ($i = 1; $i <= 5; $i++) {
+                    $ringResults[] = isset($turns[$i]) ? (bool)$turns[$i] : false;
+                }
+
                 return [
                     'id' => $row->slug ?: 'ciudadania',
                     'playerName' => $row->usuario,
                     'tokens' => $row->eco_fichas,
                     'points' => $row->puntuacion,
+                    'ringResults' => $ringResults,
                 ];
             })->toArray();
 
@@ -438,6 +452,11 @@ class GameFlowService
                 'tokens'  => $nuevasFichas,
                 'points'  => $nuevaPuntuacion,
             ];
+
+            // ACTUALIZAR EL TURNO CON EL RESULTADO FINAL
+            if ($voto) {
+                $voto->update(['is_correct' => $esCorrecto]);
+            }
         }
 
         $juego->save();

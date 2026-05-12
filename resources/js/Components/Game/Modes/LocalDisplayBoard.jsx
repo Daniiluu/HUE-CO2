@@ -131,8 +131,8 @@ export default function LocalDisplayBoard({
         }, 2500);
     };
 
-    // Para la visualPhase en el OrbitalBoard
-    const visualPhase = (currentGameState === 'results' || localFeedback !== null) ? 'results' : 'challenge';
+    // Fase visual actual (Número de anillo del 1 al 5)
+    const visualPhase = remoteState?.challenge?.visual_phase || 1;
 
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans p-0 overflow-hidden relative">
