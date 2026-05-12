@@ -147,7 +147,8 @@ export function GameBoard({
             tokens: serverData ? serverData.tokens : 12,
             playerName: serverData ? serverData.playerName : 'Esperando...',
             hasVoted: !!votes[role.id],
-            points: serverData ? serverData.points : 0
+            points: serverData ? serverData.points : 0,
+            ringResults: serverData ? serverData.ringResults : []
         };
     });
 

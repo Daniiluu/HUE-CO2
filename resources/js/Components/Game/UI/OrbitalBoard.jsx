@@ -15,6 +15,14 @@ const SECTOR_CONFIG = {
 
 const RING_RADII = [220, 185, 150, 115, 80]; // Radios para los 5 anillos, de fuera hacia dentro
 
+const RING_COLORS = [
+    '#2563eb', // Anillo 1: Agua (Blue 600)
+    '#f59e0b', // Anillo 2: Energía (Amber 500)
+    '#059669', // Anillo 3: Plástico (Emerald 600)
+    '#7c3aed', // Anillo 4: Pantallas (Violet 600)
+    '#e11d48'  // Anillo 5: Ropa (Rose 600)
+];
+
 export default function OrbitalBoard({ sectors, activeSectorId = null, visualPhase = 1 }) {
 
     // Ordenar sectores en sentido horario (Lógica oficial)
@@ -61,11 +69,12 @@ export default function OrbitalBoard({ sectors, activeSectorId = null, visualPha
 
                                     // ¿Ha completado este sector este anillo específico?
                                     // Usamos el historial de resultados por anillo enviado por el servidor
-                                    const isComplete = s.ringResults ? s.ringResults[ringIdx] : ((s.points || 0) >= ringPhase);
+                                    const isComplete = (s.ringResults && s.ringResults.length > 0) ? s.ringResults[ringIdx] : ((s.points || 0) >= ringPhase);
                                     const progress = isComplete ? 1 : 0;
                                     const progressDashArray = progress * dashArray;
 
                                     const isActive = s.id === activeSectorId && ringPhase === visualPhase;
+                                    const ringColor = RING_COLORS[ringIdx] || '#ffffff';
                                     const config = SECTOR_CONFIG[s.id] || { color: '#ffffff' };
 
                                     return (
@@ -90,11 +99,11 @@ export default function OrbitalBoard({ sectors, activeSectorId = null, visualPha
                                                 transition={{ duration: 1.5, delay: i * 0.1, ease: "circOut" }}
                                                 cx="250" cy="250" r={r} 
                                                 fill="none" 
-                                                stroke={isActive ? "#FFD700" : config.color} 
+                                                stroke={isActive ? "#FFD700" : ringColor} 
                                                 strokeWidth={isActive ? 14 : 10}
                                                 strokeDashoffset={-dashOffset}
                                                 strokeLinecap="round"
-                                                className={isComplete ? (isActive ? "drop-shadow-[0_0_12px_rgba(255,215,0,0.8)]" : `drop-shadow-[0_0_8px_${config.color}]`) : ""}
+                                                className={isComplete ? (isActive ? "drop-shadow-[0_0_12px_rgba(255,215,0,0.8)]" : `drop-shadow-[0_0_8px_${ringColor}]`) : ""}
                                             />
                                         </g>
                                     );
