@@ -98,9 +98,9 @@ class GameFlowService
                 
                 // Calcular resultado final basado en la temperatura
                 $outcome = 'victory';
-                if ($juego->temperatura >= 1.4) {
+                if ($juego->temperatura >= 1.0) {
                     $outcome = 'defeat';
-                } elseif ($juego->temperatura >= 0.8) {
+                } elseif ($juego->temperatura >= 0.5) {
                     $outcome = 'neutral';
                 }
                 
@@ -222,12 +222,26 @@ class GameFlowService
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
             ->get()
-            ->map(function ($row) {
+            ->map(function ($row) use ($juego) {
+                // Calcular qué anillos ha completado este participante
+                $turns = DB::table('turnos')
+                    ->join('cartas', 'turnos.carta_id', '=', 'cartas.carta_id')
+                    ->where('turnos.juego_id', $juego->juego_id)
+                    ->where('turnos.participante_id', $row->participante_id)
+                    ->pluck('turnos.is_correct', 'cartas.anillo_id')
+                    ->toArray();
+
+                $ringResults = [];
+                for ($i = 1; $i <= 5; $i++) {
+                    $ringResults[] = isset($turns[$i]) ? (bool)$turns[$i] : false;
+                }
+
                 return [
                     'id' => $row->slug ?: 'ciudadania',
                     'playerName' => $row->usuario,
                     'tokens' => $row->eco_fichas,
                     'points' => $row->puntuacion,
+                    'ringResults' => $ringResults,
                 ];
             })->toArray();
 
@@ -250,7 +264,9 @@ class GameFlowService
                 $carta ? ($carta->tiempo ?? 90) : 0,
                 $juego->current_turn,
                 $juego->temperatura,
-                collect($turnResults)->where('correct', true)->count() > 0, // lastTurnCorrect
+                $juego->total_calentamiento,
+                $juego->total_reduccion,
+                \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
                 $outcome
             );
         } catch (\Exception $e) {
@@ -411,17 +427,21 @@ class GameFlowService
                 ->where('rol_id',          $participacion->rol_id)
                 ->update(['eco_fichas' => $nuevasFichas, 'puntuacion' => $nuevaPuntuacion]);
 
-            // Actualizar temperatura global
+            // Actualizar temperatura global y contadores
             if ($carta->tipo === 'evento') {
                 $cambio = ($carta->cambio_temp ?? 0);
                 $juego->temperatura += $cambio;
+                if ($cambio > 0) $juego->total_calentamiento += $cambio;
+                if ($cambio < 0) $juego->total_reduccion += abs($cambio);
                 \Log::info("[HUE-CO2] Cambio Temp (Evento): {$cambio} | Total: {$juego->temperatura}");
             } else {
                 if ($esCorrecto) {
                     $juego->temperatura -= 0.1;
+                    $juego->total_reduccion += 0.1;
                     \Log::info("[HUE-CO2] Cambio Temp (Acierto/Evento OK): -0.1 | Total: {$juego->temperatura}");
                 } else {
                     $juego->temperatura += 0.1;
+                    $juego->total_calentamiento += 0.1;
                     \Log::info("[HUE-CO2] Cambio Temp (Fallo/Timeout): +0.1 | Total: {$juego->temperatura}");
                 }
             }
@@ -432,6 +452,11 @@ class GameFlowService
                 'tokens'  => $nuevasFichas,
                 'points'  => $nuevaPuntuacion,
             ];
+
+            // ACTUALIZAR EL TURNO CON EL RESULTADO FINAL
+            if ($voto) {
+                $voto->update(['is_correct' => $esCorrecto]);
+            }
         }
 
         $juego->save();

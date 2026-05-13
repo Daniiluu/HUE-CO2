@@ -41,6 +41,8 @@ export function GameBoard({
                 const finalData = {
                     outcome: serverGameState.outcome || 'neutral',
                     temperature: serverGameState.temperature,
+                    totalHeating: serverGameState.totalHeating,
+                    totalReduction: serverGameState.totalReduction,
                     sectors: serverGameState.sectors
                 };
                 setEndData(finalData);
@@ -76,6 +78,8 @@ export function GameBoard({
                         const finalData = {
                             outcome: outcome || 'neutral',
                             temperature: temperature,
+                            totalHeating: serverGameState.totalHeating, // Use the state from event/polling
+                            totalReduction: serverGameState.totalReduction,
                             sectors: newSectors
                         };
                         setEndData(finalData);
@@ -83,8 +87,10 @@ export function GameBoard({
                     }
                 }
             }
+            return response;
         } catch (error) {
             console.error('[HUE-CO2] Error al avanzar turno:', error);
+            return null;
         } finally {
             setIsLoadingChallenge(false);
         }
@@ -110,6 +116,8 @@ export function GameBoard({
                     setEndData({
                         outcome: data.outcome || 'neutral',
                         temperature: data.temperature,
+                        totalHeating: data.totalHeating,
+                        totalReduction: data.totalReduction,
                         sectors: data.sectors
                     });
                 }
@@ -139,7 +147,8 @@ export function GameBoard({
             tokens: serverData ? serverData.tokens : 12,
             playerName: serverData ? serverData.playerName : 'Esperando...',
             hasVoted: !!votes[role.id],
-            points: serverData ? serverData.points : 0
+            points: serverData ? serverData.points : 0,
+            ringResults: serverData ? serverData.ringResults : []
         };
     });
 
@@ -153,6 +162,8 @@ export function GameBoard({
                 <EndgameResults 
                     outcome={endData.outcome}
                     finalTemp={endData.temperature}
+                    totalHeating={endData.totalHeating}
+                    totalReduction={endData.totalReduction}
                     playerStats={endData.sectors?.map(s => ({
                         id: s.id,
                         name: s.id.charAt(0).toUpperCase() + s.id.slice(1),
@@ -162,6 +173,23 @@ export function GameBoard({
                         isMVP: s.points === Math.max(...endData.sectors.map(sec => sec.points))
                     }))}
                     onBackToPortal={() => window.location.href = '/'}
+                />
+            );
+        }
+
+        // Si es modo SOLO, siempre usamos el tablero local interactivo, 
+        // incluso si hay roomCode (porque el jugador juega en esta misma pantalla)
+        if (gameMode === 'solo') {
+            return (
+                <LocalDisplayBoard 
+                    sectors={sectors} 
+                    challenge={currentChallenge} 
+                    roomCode={roomCode} 
+                    turnNumber={turnNumber} 
+                    onNextChallenge={nextChallenge}
+                    visualPhase={visualPhase}
+                    myParticipantId={myParticipantId}
+                    myPlayerName={myPlayerName}
                 />
             );
         }
@@ -195,6 +223,8 @@ export function GameBoard({
                         turnNumber={turnNumber} 
                         onNextChallenge={nextChallenge}
                         visualPhase={visualPhase}
+                        myParticipantId={myParticipantId}
+                        myPlayerName={myPlayerName}
                     />
                 );
             

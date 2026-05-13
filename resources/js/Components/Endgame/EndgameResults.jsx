@@ -24,7 +24,7 @@ const GAME_RESULTS_CONFIG = {
     neutral: {
         title: "Mantenimiento Crítico",
         subtitle: "El planeta no ha empeorado, pero tampoco ha mejorado. Estamos en un equilibrio frágil.",
-        finalTemp: 0.8,
+        finalTemp: 0.5,
         reduction: 0.0,
         statusColor: "text-amber-600",
         bgColor: "bg-amber-50",
@@ -36,8 +36,8 @@ const GAME_RESULTS_CONFIG = {
     defeat: {
         title: "Colapso Climático",
         subtitle: "La temperatura ha superado los límites de seguridad. La falta de consenso ha pasado factura.",
-        finalTemp: 1.4,
-        reduction: -0.4,
+        finalTemp: 1.0,
+        reduction: -1.0,
         statusColor: "text-rose-600",
         bgColor: "bg-rose-50",
         accentColor: "bg-rose-500",
@@ -61,7 +61,8 @@ const getRoleIcon = (role) => {
 export default function EndgameResults({
     outcome = 'victory',
     finalTemp,
-    reduction,
+    totalHeating,
+    totalReduction,
     playerStats,
     onBackToPortal
 }) {
@@ -75,8 +76,9 @@ export default function EndgameResults({
         { id: 'ciencia', name: 'Ciencia e I+D', role: 'El Innovador', icon: <Lightbulb />, border: 'border-cyan-300', stat: '3 Anillos Liderados', label: 'Gran Innovador' },
     ];
     
-    // Si no viene la reducción, calculamos la variación neta respecto a 0.0
-    const displayReduction = reduction !== undefined ? reduction : (0.0 - displayTemp);
+    // Si no vienen los totales reales (modo offline), usamos el placeholder basado en el finalTemp
+    const displayHeating = totalHeating !== undefined ? totalHeating : (displayTemp > 0 ? displayTemp : 0);
+    const displayReduction = totalReduction !== undefined ? totalReduction : (displayTemp < 0 ? Math.abs(displayTemp) : 0);
     
     // 1. Preparar TODOS los sectores para gráficas
     const allSectors = playerStats ? playerStats.map(p => ({
@@ -112,11 +114,12 @@ export default function EndgameResults({
                     <ResultsHeader current={current} />
 
                     <main className="w-full flex flex-col lg:flex-row gap-8 mt-12 mb-16 relative z-10">
-                        <ThermometerPanel
-                            outcome={outcome}
-                            current={current}
-                            displayTemp={displayTemp}
-                            displayReduction={displayReduction}
+                        <ThermometerPanel 
+                            outcome={outcome} 
+                            current={current} 
+                            displayTemp={displayTemp} 
+                            displayHeating={displayHeating}
+                            displayReduction={displayReduction} 
                         />
 
                         <SectorsHall

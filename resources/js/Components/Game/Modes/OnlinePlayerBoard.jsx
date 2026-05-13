@@ -106,8 +106,16 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
             {/* MAIN CONTENT */}
             <main className="flex-1 min-h-0 w-full max-w-[1750px] mx-auto px-8 relative z-10 flex items-center justify-between gap-6">
                 <GlobalThermometer temperature={intensity} />
+                {/* Tablero Orbital - Sincronizado con el servidor */}
                 <OrbitalBoard 
-                    sectors={sectors} 
+                    sectors={sectors.map(s => {
+                        const serverSector = (serverGameState?.sectors || []).find(ss => ss.id === s.id);
+                        return {
+                            ...s,
+                            points: serverSector?.points ?? s.points,
+                            ringResults: serverSector?.ringResults ?? []
+                        };
+                    })} 
                     activeSectorId={currentChallenge?.activeSectorId} 
                     visualPhase={currentChallenge?.visual_phase || visualPhase}
                 />
@@ -152,20 +160,6 @@ function LobbyWaitingScreen({ roomCode }) {
                 SALA: {roomCode}
             </div>
         </div>
-    );
-}
-
-function FeedbackOverlay({ isCorrect }) {
-    return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
-            <div className="absolute inset-0 bg-white/20 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.5, y: 20 }} animate={{ scale: 1, y: 0 }} className={`p-10 rounded-[3rem] shadow-2xl flex flex-col items-center gap-6 border-8 ${isCorrect ? 'bg-[#E2F1C3] border-[#87AF4C]' : 'bg-[#FFC2C2] border-[#D00000]'}`}>
-                {isCorrect ? <CheckCircle2 className="w-24 h-24 text-[#87AF4C]" /> : <X className="w-24 h-24 text-[#D00000]" />}
-                <h3 className={`text-4xl font-black uppercase tracking-tighter ${isCorrect ? 'text-[#658437]' : 'text-[#D00000]'}`}>
-                    {isCorrect ? '¡Correcto!' : '¡Casi!'}
-                </h3>
-            </motion.div>
-        </motion.div>
     );
 }
 

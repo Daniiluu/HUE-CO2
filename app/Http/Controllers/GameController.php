@@ -215,9 +215,19 @@ class GameController extends Controller
                 'sectors' => $sectors,
                 'challenge' => $this->getChallengeData($juego),
                 'temperature' => $juego->temperatura,
-                'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false)
+                'totalHeating' => $juego->total_calentamiento,
+                'totalReduction' => $juego->total_reduccion,
+                'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
+                'outcome' => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null
             ]
         ]);
+    }
+
+    private function calculateOutcome(Juego $juego): string
+    {
+        if ($juego->temperatura >= 1.0) return 'defeat';
+        if ($juego->temperatura >= 0.5) return 'neutral';
+        return 'victory';
     }
 
     /**
@@ -298,11 +308,14 @@ class GameController extends Controller
 
         return response()->json([
             'state'       => $juego->estado === 'playing' ? 'challenge' : $juego->estado,
-            'turnNumber'  => $juego->current_turn,
-            'sectors'     => $sectors,
             'challenge'   => $this->getChallengeData($juego),
-            'temperature' => $juego->temperatura ?? 0,
+            'sectors'     => $sectors,
+            'temperature' => $juego->temperatura,
+            'totalHeating' => $juego->total_calentamiento,
+            'totalReduction' => $juego->total_reduccion,
+            'turnNumber'  => $juego->current_turn,
             'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
+            'outcome'     => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null
         ]);
     }
 }

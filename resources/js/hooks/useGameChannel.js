@@ -109,7 +109,10 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
                                 turnNumber: res.data.turnNumber,
                                 sectors: res.data.sectors,
                                 temperature: res.data.temperature || 0,
-                                lastTurnCorrect: res.data.lastTurnCorrect || false
+                                totalHeating: res.data.totalHeating || 0,
+                                totalReduction: res.data.totalReduction || 0,
+                                lastTurnCorrect: res.data.lastTurnCorrect || false,
+                                outcome: res.data.outcome || null
                             };
                         }
                         return prev;
@@ -132,17 +135,19 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
     // ── Enviar Voto (MobileController → Backend → Reverb → LocalDisplayBoard) ──
     const sendVote = useCallback(async (answer, type = 'options', sectorIdOverride = null) => {
         const finalSectorId = sectorIdOverride || sectorId;
-        if (!roomCode || !finalSectorId) return;
+        if (!roomCode || !finalSectorId) return null;
         try {
-            await axios.post(`/api/game/${roomCode}/vote`, {
+            const res = await axios.post(`/api/game/${roomCode}/vote`, {
                 sector_id:       finalSectorId,
                 player_name:     playerName,
                 participant_id:  participantId,
                 answer,
                 type,
             });
+            return res.data;
         } catch (err) {
             console.error('[HUE-CO2] Error al enviar voto:', err);
+            return null;
         }
     }, [roomCode, sectorId, playerName, participantId]);
 

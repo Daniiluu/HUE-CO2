@@ -12,10 +12,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ROLES } from '../../../data/gameData';
 import { Sparkles, Info } from 'lucide-react';
 
-export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNumber = 1, onNextChallenge }) {
+export default function LocalDisplayBoard({ 
+    sectors, 
+    challenge, 
+    roomCode, 
+    turnNumber = 1, 
+    onNextChallenge,
+    myParticipantId,
+    myPlayerName
+}) {
     // 1. Hooks de estado y contexto
     const { timeLeft, setTimeLeft, intensity, setIntensity } = useGame();
-    const { votes, proposal, isConnected, gameState: remoteState } = useGameChannel(roomCode, 'host', 'Pantalla');
+    const { votes, proposal, isConnected, gameState: remoteState, sendVote } = useGameChannel(roomCode, 'host', myPlayerName || 'Host', myParticipantId);
     const [activeChallenge, setActiveChallenge] = useState(challenge);
     const advancingRef = useRef(false);
 
@@ -73,6 +81,16 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
         setLocalFeedback(null);
     }, [activeChallenge?.id, activeChallenge?.title]);
 
+    // Auto-avance automático cuando estamos en modo resultados
+    useEffect(() => {
+        if (currentGameState === 'results' && !advancingRef.current) {
+            const timer = setTimeout(() => {
+                handleAdvance();
+            }, 4000); // Esperar 4 segundos viendo los resultados antes de saltar al siguiente reto
+            return () => clearTimeout(timer);
+        }
+    }, [currentGameState]);
+
     const handleAdvance = async () => {
         // Evitar doble llamada al backend
         if (advancingRef.current) return;
@@ -129,8 +147,8 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
         }, 2500);
     };
 
-    // Para la visualPhase en el OrbitalBoard
-    const visualPhase = (currentGameState === 'results' || localFeedback !== null) ? 'results' : 'challenge';
+    // Fase visual actual (Número de anillo del 1 al 5)
+    const visualPhase = remoteState?.challenge?.visual_phase || 1;
 
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans p-0 overflow-hidden relative">
@@ -168,15 +186,10 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
 
                     {/* Tiempo y Salir */}
                     <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
-                            <Clock className="w-4 h-4 text-slate-300" />
-                            <div className="flex flex-col items-end">
-                                <GameClock 
-                                    isActive={activeChallenge?.type !== 'waiting'} 
-                                    onTimeout={handleAdvance} 
-                                />
-                            </div>
-                        </div>
+                        <GameClock 
+                            isActive={activeChallenge?.type !== 'waiting'} 
+                            onTimeout={handleAdvance} 
+                        />
                         <button className="bg-white p-3 rounded-xl border border-slate-100 text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
                             <LogOut className="w-5 h-5" />
                         </button>
@@ -337,84 +350,14 @@ export default function LocalDisplayBoard({ sectors, challenge, roomCode, turnNu
                         </div>
                     </div>
                 </div>
-
-                {/* BOTÓN: FORZAR RESULTADOS (Solo en modo challenge, para el host) */}
-                <AnimatePresence>
-                    {currentGameState !== 'results' && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute top-2 right-4"
-                        >
-                            <button
-                                onClick={handleAdvance}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-500 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all"
-                                title="Forzar fin de turno (si nadie ha votado)"
-                            >
-                                Forzar Resultados <ChevronRight className="w-3 h-3" />
-                            </button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* BOTÓN SIGUIENTE (Solo en modo resultados) */}
-                <AnimatePresence>
-                    {currentGameState === 'results' && (
-                        <motion.div 
-                            initial={{ opacity: 0, y: 50 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 50 }}
-                            className="absolute inset-0 bg-white/60 backdrop-blur-md flex items-center justify-center z-[60]"
-                        >
-                            <button 
-                                onClick={handleAdvance}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-12 py-4 rounded-2xl font-black text-xl shadow-xl hover:scale-105 transition-all flex items-center gap-3 group"
-                            >
-                                <Zap className="w-6 h-6 text-yellow-300 group-hover:rotate-12 transition-transform" />
-                                SIGUIENTE RETO
-                            </button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
             </footer>
 
-            {/* OVERLAY DE RESULTADO DE TURNO (Multiplayer o Local) */}
+            {/* OVERLAY DE RESULTADO DE TURNO (Solo feedback temporal) */}
             <AnimatePresence>
-                {(currentGameState === 'results' || localFeedback !== null) && (
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
-                    >
-                        <motion.div 
-                            initial={{ scale: 0.5, rotate: -5 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            className={`p-16 rounded-[4rem] shadow-2xl flex flex-col items-center gap-6 border-8 
-                                ${(remoteState?.lastTurnCorrect || localFeedback === 'correct') 
-                                    ? 'bg-emerald-500 border-emerald-400' 
-                                    : 'bg-rose-600 border-rose-500'}`}
-                        >
-                            {(remoteState?.lastTurnCorrect || localFeedback === 'correct') ? (
-                                <>
-                                    <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-inner">
-                                        <CheckCircle2 className="w-20 h-20 text-emerald-500" />
-                                    </div>
-                                    <h1 className="text-white text-7xl font-black uppercase tracking-tighter">¡LOGRADO!</h1>
-                                    <p className="text-emerald-100 text-xl font-bold uppercase tracking-widest">+1 PUNTO PARA EL SECTOR</p>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-inner animate-bounce">
-                                        <AlertTriangle className="w-20 h-20 text-rose-500" />
-                                    </div>
-                                    <h1 className="text-white text-7xl font-black uppercase tracking-tighter">¡FALLO!</h1>
-                                    <p className="text-rose-100 text-xl font-bold uppercase tracking-widest">+0.1°C A LA TEMPERATURA GLOBAL</p>
-                                </>
-                            )}
-                        </motion.div>
-                    </motion.div>
+                {localFeedback !== null && (
+                    <FeedbackOverlay 
+                        isCorrect={localFeedback === 'correct'} 
+                    />
                 )}
             </AnimatePresence>
         </div>
