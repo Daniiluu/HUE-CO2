@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, User, Globe, ArrowRight, UserCircle2 } from 'lucide-react';
 
-export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
-    const [nickname, setNickname] = useState('');
+export function HostAuthView({ onBack, onSelectMode, isGuest = true, initialNickname = '' }) {
+    const [nickname, setNickname] = useState(initialNickname);
 
-    const handleSelect = (mode) => {
+    const handleSelect = (mode, isLocal = false) => {
         if (!nickname.trim()) {
             alert("Por favor, introduce tu nombre para crear la sala.");
             return;
         }
-        onSelectMode(mode, nickname);
+        onSelectMode(mode, nickname, isLocal);
     };
 
     return (
@@ -50,7 +50,7 @@ export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
 
             <div className="space-y-4">
                 <button
-                    onClick={() => handleSelect('solo')}
+                    onClick={() => handleSelect('online_selector', true)}
                     className="w-full flex items-center justify-between p-6 bg-[#f0fdf4] border-4 border-[#E3EFD2] hover:border-[#87AF4C] rounded-2xl transition-all group"
                 >
                     <div className="flex items-center gap-4 text-left">
@@ -58,15 +58,15 @@ export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
                             <User className="text-[#87AF4C] w-6 h-6" />
                         </div>
                         <div>
-                            <div className="font-black text-[#1c1917]">Modo Local / 1 Jugador</div>
-                            <div className="text-[10px] text-[#87AF4C] font-bold uppercase tracking-widest mt-1">Ideal para probar tú solo</div>
+                            <div className="font-black text-[#1c1917]">Multijugador Local</div>
+                            <div className="text-[10px] text-[#87AF4C] font-bold uppercase tracking-widest mt-1">Pantalla compartida + Móviles</div>
                         </div>
                     </div>
                     <ArrowRight className="w-5 h-5 text-[#87AF4C] opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
 
                 <button
-                    onClick={() => handleSelect('online_selector')}
+                    onClick={() => handleSelect('online_selector', false)}
                     className="w-full flex items-center justify-between p-6 bg-[#f5f5f4] border-4 border-[#e7e5e4] hover:border-[#1c1917] rounded-2xl transition-all group"
                 >
                     <div className="flex items-center gap-4 text-left">
@@ -74,8 +74,8 @@ export function HostAuthView({ onBack, onSelectMode, isGuest = true }) {
                             <Globe className="text-[#a8a29e] w-6 h-6" />
                         </div>
                         <div>
-                            <div className="font-black text-[#1c1917]">Modo Multijugador Online</div>
-                            <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-widest mt-1">Elige de 2 a 6 jugadores</div>
+                            <div className="font-black text-[#1c1917]">Multijugador Online</div>
+                            <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-widest mt-1">Cada uno en su casa</div>
                         </div>
                     </div>
                     <ArrowRight className="w-5 h-5 text-[#a8a29e] opacity-0 group-hover:opacity-100 transition-opacity" />

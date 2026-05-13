@@ -241,9 +241,9 @@ export default function MobileController({
                     <div className="w-20 h-20 bg-[#f5f5f4] rounded-full flex items-center justify-center mx-auto mb-6">
                         <HeartHandshake className="w-10 h-10 text-[#a8a29e] animate-bounce" />
                     </div>
-                    <h2 className="text-2xl font-black mb-3 text-[#1c1917]">¡Estás dentro!</h2>
+                    <h2 className="text-2xl font-black mb-3 text-[#1c1917]">¡Conectado!</h2>
                     <p className="text-sm text-[#78716c] font-medium leading-relaxed mb-6">
-                        Te has conectado correctamente a la sala. Espera a que el anfitrión inicie la partida en la pantalla grande.
+                        Esperando a que el host empiece la partida...
                     </p>
                     <div className="flex items-center justify-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />

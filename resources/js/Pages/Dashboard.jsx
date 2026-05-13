@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
 import { PlusCircle, Gamepad2, ArrowRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import MatchHistory from '@/Components/Dashboard/MatchHistory';
@@ -12,12 +12,15 @@ import { LobbyView } from '../Components/GuestPortal/LobbyView';
 import axios from 'axios';
 
 export default function Dashboard() {
+    const { auth } = usePage().props;
     const [view, setView] = useState('main'); // main, host_auth, select_mode, lobby
     const [mode, setMode] = useState(null);
+    const [nickname, setNickname] = useState(auth.user?.name || auth.user?.username || '');
     const [selectedPlayers, setSelectedPlayers] = useState(null);
     const [roomCode, setRoomCode] = useState('');
     const [juegoId, setJuegoId] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
+    const [isLocal, setIsLocal] = useState(false);
 
     const navigateTo = (newView) => {
         setView(newView);
@@ -34,7 +37,9 @@ export default function Dashboard() {
 
             const response = await axios.post('/juego/crear', {
                 modo: selectedMode,
-                anillo_id: 1
+                anillo_id: 1,
+                usuario: nickname || auth.user?.name || auth.user?.username || 'Anfitrión',
+                is_local: isLocal
             });
 
             if (response.data?.juego?.room_code) {
@@ -68,8 +73,14 @@ export default function Dashboard() {
         }
     };
 
-    const startLocalGame = (params = {}) => {
-        // Redirigir a la nueva pantalla del tablero premium
+    const startLocalGame = async (params = {}) => {
+        try {
+            // Avisar al servidor: repartir roles y cambiar estado a 'playing'
+            await axios.post(`/api/game/${roomCode}/advance`);
+        } catch (error) {
+            console.error('[HUE-CO2] Error al iniciar juego:', error);
+        }
+        // Redirigir a la pantalla del tablero principal (host)
         router.get(`/tablero/${roomCode}`, { 
             mode: params.mode || mode 
         });
@@ -153,8 +164,13 @@ export default function Dashboard() {
                         <HostAuthView 
                             key="host" 
                             isGuest={false}
+                            initialNickname={nickname}
                             onBack={() => navigateTo('main')}
-                            onSelectMode={() => navigateTo('select_mode')}
+                            onSelectMode={(m, n, local) => {
+                                if (n) setNickname(n);
+                                setIsLocal(!!local);
+                                navigateTo('select_mode');
+                            }}
                         />
                     )}
 
@@ -171,6 +187,7 @@ export default function Dashboard() {
                         <LobbyView 
                             key="lobby"
                             mode={mode}
+                            isHost={true}
                             roomCode={roomCode}
                             selectedPlayers={selectedPlayers}
                             setSelectedPlayers={handleSetSelectedPlayers}

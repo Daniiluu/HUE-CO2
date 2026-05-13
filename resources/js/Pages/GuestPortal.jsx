@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Crown, Gamepad2, AlertCircle } from 'lucide-react';
 
@@ -45,11 +45,12 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function GuestPortal({ pin = null }) {
+    const { auth } = usePage().props;
     const [view, setView] = useState(pin ? 'join' : 'main');
     const [mode, setMode] = useState(null);
     const [roomCode, setRoomCode] = useState(pin ? pin.toString() : null);
     const [selectedPlayers, setSelectedPlayers] = useState(null);
-    const [myPlayerName, setMyPlayerName] = useState('');
+    const [myPlayerName, setMyPlayerName] = useState(auth.user?.name || auth.user?.username || '');
     const [myRoles, setMyRoles] = useState([]);
     const [myTotalTokens, setMyTotalTokens] = useState(0);
     const [myParticipantId, setMyParticipantId] = useState(null);
@@ -188,7 +189,7 @@ export default function GuestPortal({ pin = null }) {
             setMyParticipantId(response.data.participante?.participante_id);
             setMode(response.data.juego?.modo || 'multiplayer');
             setIsHost(false);
-            navigateTo('lobby');
+            navigateTo('playing');
 
         } catch (error) {
             console.error('[HUE-CO2] Error al conectar:', error);
@@ -242,6 +243,7 @@ export default function GuestPortal({ pin = null }) {
                 {view === 'host_auth' && (
                     <HostAuthView 
                         key="host_auth" 
+                        initialNickname={myPlayerName}
                         onBack={() => navigateTo('main')} 
                         onSelectMode={(mode, nickname) => handleSelectMode(mode, nickname)} 
                     />
@@ -285,7 +287,7 @@ export default function GuestPortal({ pin = null }) {
                 {/* VISTA 5: JUEGO EN CURSO (MANDO O TABLERO) */}
                 {view === 'playing' && (
                     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
-                        {roomCode && !roomCode.startsWith('LOCAL_') ? (
+                        {isHost ? (
                             <GameBoard 
                                 roomCode={roomCode}
                                 gameMode={mode || 'multiplayer'}
@@ -301,7 +303,7 @@ export default function GuestPortal({ pin = null }) {
                                 playerName={myPlayerName}
                                 roles={myRoles.length > 0 ? myRoles : [{ id: 'ciudadania', name: 'Ciudadanía' }]}
                                 tokens={myTotalTokens}
-                                gameState="lobby"
+                                gameState={serverGameState?.state === 'lobby' ? 'lobby' : (serverGameState?.state || 'lobby')}
                             />
                         )}
                     </div>

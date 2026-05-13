@@ -22,6 +22,8 @@ class JuegoController extends Controller
     // POST /api/juegos
     public function store(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info('[HUE-CO2] Petición a /juego/crear:', $request->all());
+
         $request->validate([
             'modo'       => 'required|string|max:50',
             'anillo_id'  => 'nullable|exists:anillos,anillo_id',
@@ -43,12 +45,14 @@ class JuegoController extends Controller
             'user_id' => $request->user()?->id,
         ]);
 
-        // Unirlo al juego
-        $juego->participantes()->attach($participante->participante_id, [
-            'rol_id'     => null, // Se asignará al empezar
-            'eco_fichas' => 12,
-            'puntuacion' => 0,
-        ]);
+        // Solo unir al host como participante si NO es modo local O si es modo solo
+        if (!$request->input('is_local', false) || $request->modo === 'solo') {
+            $juego->participantes()->attach($participante->participante_id, [
+                'rol_id'     => null, // Se asignará al empezar
+                'eco_fichas' => 12,
+                'puntuacion' => 0,
+            ]);
+        }
 
         return response()->json([
             'message'      => 'Juego creado y host unido',

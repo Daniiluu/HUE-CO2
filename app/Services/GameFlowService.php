@@ -447,15 +447,19 @@ class GameFlowService
             ->pluck('carta_id')
             ->toArray();
 
-        // Elegir una carta del anillo que no se haya jugado
+        // Elegir una carta del anillo que no se haya jugado y que sea de tipo 'pregunta'
         $carta = Carta::where('anillo_id', $anilloId)
+            ->where('tipo', 'pregunta')
             ->whereNotIn('carta_id', $cartasJugadas)
             ->inRandomOrder()
             ->first();
 
-        // Si por alguna razón nos quedamos sin cartas, repetimos de las que hay en el anillo
+        // Si por alguna razón nos quedamos sin cartas, repetimos de las que hay en el anillo (solo preguntas)
         if (!$carta) {
-            $carta = Carta::where('anillo_id', $anilloId)->inRandomOrder()->first();
+            $carta = Carta::where('anillo_id', $anilloId)
+                ->where('tipo', 'pregunta')
+                ->inRandomOrder()
+                ->first();
         }
 
         return $carta;

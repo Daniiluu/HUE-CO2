@@ -7,6 +7,8 @@ import ChallengeCard from '../UI/ChallengeCard';
 import GlobalThermometer from '../UI/GlobalThermometer';
 import OrbitalBoard from '../UI/OrbitalBoard';
 import GameClock from '../UI/GameClock';
+import { ROLES } from '../../../data/gameData';
+import { Sparkles, Info, Zap as ZapIcon } from 'lucide-react';
 
 const figmaColors = {
     'ciencia':    { bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', iconClass: 'text-[#9640FF]' },
@@ -60,19 +62,19 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
         }
     }, [lastFeedback]);
 
-    if (serverGameState?.state === 'lobby' || !currentChallenge) {
-        return <LobbyWaitingScreen roomCode={roomCode} />;
-    }
-
-    const currentDisplayRole = isMyTurn ? sectors.find(s => s.id === currentChallenge?.activeSectorId) : (myAssignedRoles[0] || sectors[0]);
-    const theme = figmaColors[currentDisplayRole?.id] || figmaColors['tech'];
-
     // Sincronizar temperatura global desde el servidor
     useEffect(() => {
         if (serverGameState?.temperature !== undefined) {
             setIntensity(serverGameState.temperature);
         }
     }, [serverGameState?.temperature]);
+
+    if (serverGameState?.state === 'lobby' || !currentChallenge) {
+        return <LobbyWaitingScreen roomCode={roomCode} />;
+    }
+
+    const currentDisplayRole = isMyTurn ? sectors.find(s => s.id === currentChallenge?.activeSectorId) : (myAssignedRoles[0] || sectors[0]);
+    const theme = figmaColors[currentDisplayRole?.id] || figmaColors['tech'];
 
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans overflow-hidden relative">

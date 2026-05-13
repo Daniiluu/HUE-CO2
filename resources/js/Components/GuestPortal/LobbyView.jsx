@@ -147,7 +147,8 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                 </button>
             )}
         </div>
-    )};
+        );
+    };
 
     return (
         <div className="w-full max-w-2xl bg-white border-4 border-[#e7e5e4] p-8 md:p-12 rounded-[3.5rem] shadow-2xl relative transition-all duration-300">
@@ -170,7 +171,8 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                     </div>
                 )}
                 {mode === 'solo' && renderSoloLobby()}
-                {(mode === 'small' || mode === 'classic' || mode === 'class') && (
+                {mode === 'small' && renderSmallLobby()}
+                {(mode === 'classic' || mode === 'class') && (
                     <div className="flex flex-col items-center text-center">
                         <h3 className="text-2xl font-black mb-6 text-stone-900">
                             {mode === 'classic' ? 'Modo Clásico (6 Jugadores)' : 
