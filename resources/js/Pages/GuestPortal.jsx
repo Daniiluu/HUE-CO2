@@ -9,7 +9,7 @@ import { HostAuthView } from '../Components/GuestPortal/HostAuthView';
 import { ModeSelectionView } from '../Components/GuestPortal/ModeSelectionView';
 import { LobbyView } from '../Components/GuestPortal/LobbyView';
 import { JoinView } from '../Components/GuestPortal/JoinView';
-import MobileController from '../Components/Game/Modes/MobileController';
+import MobileController from '../Components/Game/Modes/Local/MobileController';
 import axios from 'axios';
 import { ROLES } from '../data/gameData';
 import { useGameChannel } from '../hooks/useGameChannel';
@@ -56,6 +56,7 @@ export default function GuestPortal({ pin = null }) {
     const [myParticipantId, setMyParticipantId] = useState(null);
     const [joinError, setJoinError] = useState(null);
     const [isOnlineMode, setIsOnlineMode] = useState(false);
+    const [isLocal, setIsLocal] = useState(true); // Modo Kahoot por defecto
     const [isHost, setIsHost] = useState(false);
     
     // Escuchar el canal del juego para recibir el estado en tiempo real
@@ -101,66 +102,45 @@ export default function GuestPortal({ pin = null }) {
         }
     };
 
-    const handleSelectMode = async (selectedMode, nickname) => {
-        // Si viene de HostAuthView con el nombre del host
-        if (nickname) setMyPlayerName(nickname);
-
-        // Caso 1: Solo quiere ver el selector online
+    const handleSelectMode = async (selectedMode, hostNickname = null, isLocalFromAuth = null) => {
+        if (hostNickname) setMyPlayerName(hostNickname);
+        
+        // El anfitrión elige el modo (Pequeño, Clásico, etc.)
         if (selectedMode === 'online_selector') {
-            setIsOnlineMode(true);
+            const finalIsLocal = isLocalFromAuth !== null ? isLocalFromAuth : true;
+            setIsLocal(finalIsLocal);
+            setIsOnlineMode(!finalIsLocal);
             navigateTo('select_mode');
             return;
         }
 
-        // Caso 2: Elige modo Solo (Local / Un solo jugador)
-        if (selectedMode === 'solo') {
-            setMode('solo');
-            setIsOnlineMode(false);
-            setIsHost(true); // El jugador local es el host de su propia partida
-            try {
-                const response = await axios.post('/juego/crear', {
-                    modo: 'solo',
-                    anillo_id: 1,
-                    usuario: nickname || myPlayerName || 'Jugador 1'
-                });
-                
-                if (response.data?.juego?.room_code) {
-                    setRoomCode(response.data.juego.room_code);
-                    if (response.data.participante) {
-                        setMyParticipantId(response.data.participante.participante_id);
-                    }
-                    navigateTo('lobby');
-                }
-            } catch (error) {
-                console.error('[HUE-CO2] Error creando partida solo:', error);
-                setJoinError("No se pudo iniciar la partida. Revisa tu conexión.");
-            }
-            return;
-        }
-
-        // Caso 3: Elige un modo Multijugador (Small, Classic, Class)
         setMode(selectedMode);
         setIsHost(true);
+        
+        // Si ya tenemos un valor en el estado isLocal (elegido en el paso anterior), lo mantenemos.
+        // Si no, o si es modo solo, decidimos.
+        const isLocalSelection = (selectedMode === 'solo') ? true : isLocal; 
+        setIsLocal(isLocalSelection);
+        setIsOnlineMode(!isLocalSelection);
+        
         try {
             const response = await axios.post('/juego/crear', {
                 modo: selectedMode,
                 anillo_id: 1,
-                usuario: nickname || myPlayerName || 'Anfitrión'
+                usuario: hostNickname || myPlayerName || 'Anfitrión',
+                is_local: isLocalSelection
             });
             
             if (response.data?.juego?.room_code) {
-                const newRoomCode = response.data.juego.room_code;
-                setRoomCode(newRoomCode);
-                
+                setRoomCode(response.data.juego.room_code);
                 if (response.data.participante) {
                     setMyParticipantId(response.data.participante.participante_id);
                 }
-
                 navigateTo('lobby');
             }
         } catch (error) {
-            console.error('[HUE-CO2] Error creando partida online:', error);
-            setJoinError("No se pudo crear la sala online. Revisa tu conexión.");
+            console.error('[HUE-CO2] Error creando partida:', error);
+            setJoinError("No se pudo crear la sala. Revisa tu conexión.");
         }
     };
 
@@ -168,8 +148,9 @@ export default function GuestPortal({ pin = null }) {
         // Caso A: Partida Online (tiene un roomCode real)
         if (roomCode && !roomCode.startsWith('LOCAL_')) {
             try {
+                const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
                 // 1. Avisar al servidor para que reparta roles y empiece
-                await axios.post(`/api/game/${roomCode}/advance`);
+                await axios.post(`/api/game/${cleanCode}/advance`);
                 
                 // 2. Navegar a la vista de tablero (OnlinePlayerBoard)
                 // Usamos el modo 'playing' pero configuraremos el render para que muestre el tablero
@@ -205,9 +186,20 @@ export default function GuestPortal({ pin = null }) {
             setRoomCode(cleanPin);
             setMyPlayerName(data.nickname);
             setMyParticipantId(response.data.participante?.participante_id);
-            setMode(response.data.juego?.modo || 'multiplayer');
+            const gameIsLocal = !!response.data.juego.is_local;
+            setIsLocal(gameIsLocal);
+            setIsOnlineMode(!gameIsLocal);
             setIsHost(false);
-            navigateTo('playing');
+
+            if (!gameIsLocal) {
+                // Si es Online, redirigir al tablero completo usando el router de Inertia
+                router.get(`/tablero/${cleanPin}`, {
+                    playerName: data.nickname,
+                    participantId: response.data.participante?.participante_id
+                });
+            } else {
+                navigateTo('playing');
+            }
 
         } catch (error) {
             console.error('[HUE-CO2] Error al conectar:', error);
@@ -263,7 +255,7 @@ export default function GuestPortal({ pin = null }) {
                         key="host_auth" 
                         initialNickname={myPlayerName}
                         onBack={() => navigateTo('main')} 
-                        onSelectMode={(mode, nickname) => handleSelectMode(mode, nickname)} 
+                        onSelectMode={(mode, nickname, local) => handleSelectMode(mode, nickname, local)} 
                     />
                 )}
 
@@ -305,10 +297,11 @@ export default function GuestPortal({ pin = null }) {
                 {/* VISTA 5: JUEGO EN CURSO (MANDO O TABLERO) */}
                 {view === 'playing' && (
                     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
-                        {isHost ? (
+                        {(isHost || !isLocal) ? (
                             <GameBoard 
                                 roomCode={roomCode}
                                 gameMode={mode || 'multiplayer'}
+                                isLocal={isLocal}
                                 myRoles={myRoles}
                                 myPlayerName={myPlayerName}
                                 myParticipantId={myParticipantId}

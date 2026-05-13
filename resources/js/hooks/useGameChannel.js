@@ -22,6 +22,7 @@ import axios from 'axios';
  * }}
  */
 export function useGameChannel(roomCode, sectorId, playerName, participantId = null) {
+    const cleanRoomCode = (roomCode || '').toString().replace(/\s/g, '');
     const channelRef = useRef(null);
 
     const [isConnected, setIsConnected]   = useState(false);
@@ -32,9 +33,9 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
 
     // ── Suscripción al canal ──────────────────────────────────────────────────
     useEffect(() => {
-        if (!roomCode || !window.Echo) return;
+        if (!cleanRoomCode || !window.Echo) return;
 
-        const channelName = `game.${roomCode}`;
+        const channelName = `game.${cleanRoomCode}`;
 
         channelRef.current = window.Echo.channel(channelName)
             .listen('PlayerVoted', (e) => {
@@ -78,16 +79,16 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             }
             setIsConnected(false);
         };
-    }, [roomCode]);
+    }, [cleanRoomCode]);
 
     // ── Polling de respaldo (por si falla WebSockets) ─────────────────────────
     useEffect(() => {
         // No hacer polling si no hay código o si es una partida local (no persiste en BD)
-        if (!roomCode || roomCode.startsWith('LOCAL_')) return;
+        if (!cleanRoomCode || cleanRoomCode.startsWith('LOCAL_')) return;
 
         const fetchState = async () => {
             try {
-                const res = await axios.get(`/api/juego/${roomCode}/estado`);
+                const res = await axios.get(`/api/juego/${cleanRoomCode}/estado`);
                 if (res.data) {
                     setGameState(prev => {
                         // Solo actualizar si ha cambiado el estado, el reto o el turno
@@ -130,14 +131,14 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         const interval = setInterval(fetchState, 1000);
 
         return () => clearInterval(interval);
-    }, [roomCode]);
+    }, [cleanRoomCode]);
 
     // ── Enviar Voto (MobileController → Backend → Reverb → LocalDisplayBoard) ──
     const sendVote = useCallback(async (answer, type = 'options', sectorIdOverride = null) => {
         const finalSectorId = sectorIdOverride || sectorId;
-        if (!roomCode || !finalSectorId) return null;
+        if (!cleanRoomCode || !finalSectorId) return null;
         try {
-            const res = await axios.post(`/api/game/${roomCode}/vote`, {
+            const res = await axios.post(`/api/game/${cleanRoomCode}/vote`, {
                 sector_id:       finalSectorId,
                 player_name:     playerName,
                 participant_id:  participantId,
@@ -149,14 +150,14 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             console.error('[HUE-CO2] Error al enviar voto:', err);
             return null;
         }
-    }, [roomCode, sectorId, playerName, participantId]);
+    }, [cleanRoomCode, sectorId, playerName, participantId]);
 
     // ── Enviar Propuesta (Texto Libre) ────────────────────────────────────────
     const sendProposal = useCallback(async (text, sectorIdOverride = null) => {
         const finalSectorId = sectorIdOverride || sectorId;
-        if (!roomCode || !finalSectorId || !text.trim()) return;
+        if (!cleanRoomCode || !finalSectorId || !text.trim()) return;
         try {
-            await axios.post(`/api/game/${roomCode}/proposal`, {
+            await axios.post(`/api/game/${cleanRoomCode}/proposal`, {
                 sector_id:       finalSectorId,
                 player_name:     playerName,
                 participant_id:  participantId,
@@ -165,19 +166,19 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
         } catch (err) {
             console.error('[HUE-CO2] Error al enviar propuesta:', err);
         }
-    }, [roomCode, sectorId, playerName, participantId]);
+    }, [cleanRoomCode, sectorId, playerName, participantId]);
     
     const sendChatMessage = useCallback(async (text) => {
-        if (!roomCode || !text.trim()) return;
+        if (!cleanRoomCode || !text.trim()) return;
         try {
-            await axios.post(`/api/game/${roomCode}/chat`, {
+            await axios.post(`/api/game/${cleanRoomCode}/chat`, {
                 player_name: playerName,
                 message:     text,
             });
         } catch (err) {
             console.error('[HUE-CO2] Error al enviar mensaje de chat:', err);
         }
-    }, [roomCode, playerName]);
+    }, [cleanRoomCode, playerName]);
 
     return {
         isConnected,

@@ -15,7 +15,7 @@ export default function Dashboard() {
     const { auth } = usePage().props;
     const [view, setView] = useState('main'); // main, host_auth, select_mode, lobby
     const [mode, setMode] = useState(null);
-    const [nickname, setNickname] = useState(auth.user?.name || auth.user?.username || '');
+    const [nickname, setNickname] = useState(auth.user?.username || auth.user?.name || '');
     const [selectedPlayers, setSelectedPlayers] = useState(null);
     const [roomCode, setRoomCode] = useState('');
     const [juegoId, setJuegoId] = useState(null);
@@ -74,15 +74,29 @@ export default function Dashboard() {
     };
 
     const startLocalGame = async (params = {}) => {
+        const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
         try {
             // Avisar al servidor: repartir roles y cambiar estado a 'playing'
-            await axios.post(`/api/game/${roomCode}/advance`);
+            await axios.post(`/api/game/${cleanCode}/advance`);
         } catch (error) {
             console.error('[HUE-CO2] Error al iniciar juego:', error);
         }
-        // Redirigir a la pantalla del tablero principal (host)
-        router.get(`/tablero/${roomCode}`, { 
-            mode: params.mode || mode 
+        
+        // Si es modo Online, forzar redirección al tablero completo usando el router de Inertia
+        if (!isLocal) {
+            router.get(`/tablero/${cleanCode}`, {
+                mode: params.mode || mode,
+                isLocal: false,
+                playerName: nickname
+            });
+            return;
+        }
+
+        // Si es Local, usar el router de Inertia normal
+        router.get(`/tablero/${cleanCode}`, { 
+            mode: params.mode || mode,
+            isLocal: isLocal,
+            playerName: nickname
         });
     };
 

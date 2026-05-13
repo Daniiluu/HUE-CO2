@@ -30,12 +30,9 @@ Route::middleware('auth')->group(function () {
 });
 
 // Ruta del Tablero Principal (Solo visualización Premium)
-Route::get('/tablero/{roomCode}', function ($roomCode) {
-    return Inertia::render('GameDisplay', [
-        'roomCode' => $roomCode,
-        'initialMode' => request('mode', 'shared')
-    ]);
-})->name('game.board');
+Route::get('/tablero/{roomCode}', [App\Http\Controllers\GameController::class, 'board'])
+    ->name('game.board')
+    ->where('roomCode', '[A-Za-z0-9]+');
 
 // Ruta para juego local desde el Guest Portal (Sin Auth)
 Route::get('/juego-local', function () {

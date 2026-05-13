@@ -7,7 +7,7 @@ import {
     ChevronRight, Recycle, ShieldCheck, Star, Hexagon, Heart, Moon,
     CheckCircle, Minus, X
 } from 'lucide-react';
-import { useGameChannel } from '../../../hooks/useGameChannel';
+import { useGameChannel } from '../../../../hooks/useGameChannel';
 
 // ─── Constantes Estáticas ────────────────────────────────────────────────────
 // Fuente de verdad de roles (espejo del gameData.ts para el mando)

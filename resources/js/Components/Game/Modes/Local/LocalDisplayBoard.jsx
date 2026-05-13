@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import GameClock from '../UI/GameClock';
+import GameClock from '../../UI/GameClock';
 import { Clock, LogOut, Zap, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react';
-import OrbitalBoard from '../UI/OrbitalBoard';
-import GlobalThermometer from '../UI/GlobalThermometer';
-import ChallengeCard from '../UI/ChallengeCard';
-import SectorMiniCard from '../UI/SectorMiniCard';
-import { useGame } from '../Core/GameProvider';
-import { useGameChannel } from '../../../hooks/useGameChannel';
+import OrbitalBoard from '../../UI/OrbitalBoard';
+import GlobalThermometer from '../../UI/GlobalThermometer';
+import ChallengeCard from '../../UI/ChallengeCard';
+import SectorMiniCard from '../../UI/SectorMiniCard';
+import { useGame } from '../../Core/GameProvider';
+import { useGameChannel } from '../../../../hooks/useGameChannel';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ROLES } from '../../../data/gameData';
+import { ROLES } from '../../../../data/gameData';
 import { Sparkles, Info } from 'lucide-react';
+import FeedbackOverlay from '../../UI/FeedbackOverlay';
 
 export default function LocalDisplayBoard({ 
     sectors, 
@@ -100,7 +101,8 @@ export default function LocalDisplayBoard({
             if (onNextChallenge) {
                 response = await onNextChallenge();
             } else {
-                response = await axios.post(`/api/game/${roomCode}/advance`);
+                const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
+                response = await axios.post(`/api/game/${cleanCode}/advance`);
             }
             // FALLBACK: actualizar temperatura directamente si el WS falla
             if (response?.data?.juego) {
@@ -234,18 +236,24 @@ export default function LocalDisplayBoard({
                             </h2>
                             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 text-sm text-amber-800">
                                 <strong>Turno de: {activeSector?.playerName || activeSectorId}</strong>
-                                <p className="mt-1 font-medium">Responde en voz alta. Cuando hayas terminado, pulsa el botón para que tus compañeros evalúen tu respuesta.</p>
+                                <p className="mt-1 font-medium">
+                                    {isLocalGame 
+                                        ? "Responde en voz alta. Cuando hayas terminado, pulsa el botón para que tus compañeros evalúen tu respuesta."
+                                        : "El jugador está respondiendo en su dispositivo. Esperando confirmación..."}
+                                </p>
                             </div>
-                            <button
-                                onClick={() => handleApply(null)}
-                                className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base transition-all active:scale-95 shadow-lg"
-                            >
-                                👍 Ya respondí en voz alta
-                            </button>
+                            {isLocalGame && (
+                                <button
+                                    onClick={() => handleApply(null)}
+                                    className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base transition-all active:scale-95 shadow-lg"
+                                >
+                                    👍 Ya respondí en voz alta
+                                </button>
+                            )}
                         </motion.div>
                     )}
 
-                    {isFreeQuestion && freePhase === 'evaluating' && (
+                    {isFreeQuestion && (freePhase === 'evaluating' || (!isLocalGame && activeChallenge.type === 'validate')) && (
                         // FASE EVALUACIÓN: Los demás votan si la respuesta fue correcta
                         <motion.div
                             key="free-evaluating"
@@ -255,33 +263,53 @@ export default function LocalDisplayBoard({
                         >
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="text-[9px] font-black uppercase text-[#87AF4C] tracking-widest bg-[#f0fdf4] px-3 py-1 rounded-full border border-[#E3EFD2]">
-                                    ⭐ Evalúa a tu compañero
+                                    ⭐ {isLocalGame ? "Evalúa a tu compañero" : "Evaluación en curso"}
                                 </span>
                             </div>
                             <h3 className="text-base font-black text-[#1c1917] mb-1">{activeChallenge.title}</h3>
                             <p className="text-sm text-[#78716c] font-medium mb-5">
-                                El sector <strong className="uppercase">{activeSector?.playerName || activeSectorId}</strong> ha respondido. ¿Cuál es el veredicto del equipo?
+                                {isLocalGame 
+                                    ? `El sector ${activeSector?.playerName || activeSectorId} ha respondido. ¿Cuál es el veredicto del equipo?`
+                                    : `El grupo está evaluando la propuesta de ${activeSector?.playerName || activeSectorId}...`}
                             </p>
-                            <div className="space-y-3">
-                                <button
-                                    onClick={() => handleApply('valid')}
-                                    className="w-full py-3 border-[3px] border-emerald-400 bg-emerald-50 text-emerald-800 rounded-2xl font-black text-sm hover:bg-emerald-100 active:scale-95 transition-all"
-                                >
-                                    ✅ Totalmente correcta
-                                </button>
-                                <button
-                                    onClick={() => handleApply('partial')}
-                                    className="w-full py-3 border-[3px] border-amber-400 bg-amber-50 text-amber-800 rounded-2xl font-black text-sm hover:bg-amber-100 active:scale-95 transition-all"
-                                >
-                                    ⚠️ Incompleta (parcial)
-                                </button>
-                                <button
-                                    onClick={() => handleApply('invalid')}
-                                    className="w-full py-3 border-[3px] border-rose-400 bg-rose-50 text-rose-800 rounded-2xl font-black text-sm hover:bg-rose-100 active:scale-95 transition-all"
-                                >
-                                    ❌ Incorrecta
-                                </button>
-                            </div>
+                            
+                            {isLocalGame ? (
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => handleApply('valid')}
+                                        className="w-full py-3 border-[3px] border-emerald-400 bg-emerald-50 text-emerald-800 rounded-2xl font-black text-sm hover:bg-emerald-100 active:scale-95 transition-all"
+                                    >
+                                        ✅ Totalmente correcta
+                                    </button>
+                                    <button
+                                        onClick={() => handleApply('partial')}
+                                        className="w-full py-3 border-[3px] border-amber-400 bg-amber-50 text-amber-800 rounded-2xl font-black text-sm hover:bg-amber-100 active:scale-95 transition-all"
+                                    >
+                                        ⚠️ Incompleta (parcial)
+                                    </button>
+                                    <button
+                                        onClick={() => handleApply('invalid')}
+                                        className="w-full py-3 border-[3px] border-rose-400 bg-rose-50 text-rose-800 rounded-2xl font-black text-sm hover:bg-rose-100 active:scale-95 transition-all"
+                                    >
+                                        ❌ Incorrecta
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-center">
+                                    <div className="flex items-center justify-center gap-2 text-[#87AF4C] font-black text-sm">
+                                        <div className="w-2 h-2 rounded-full bg-[#87AF4C] animate-ping" />
+                                        Esperando votos del grupo...
+                                    </div>
+                                    <div className="mt-4 flex justify-center gap-1">
+                                        {sectors.filter(s => s.id !== activeSectorId).map(s => (
+                                            <div 
+                                                key={`vote-dot-${s.id}`}
+                                                className={`w-3 h-3 rounded-full border-2 ${votes[s.id] ? 'bg-[#87AF4C] border-[#87AF4C]' : 'bg-transparent border-slate-300'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </motion.div>
                     )}
 

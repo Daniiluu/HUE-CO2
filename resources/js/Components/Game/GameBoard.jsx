@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 // Importación de Tableros por Modo
-import LocalDisplayBoard from './Modes/LocalDisplayBoard';
-import OnlinePlayerBoard from './Modes/OnlinePlayerBoard';
+import LocalDisplayBoard from './Modes/Local/LocalDisplayBoard';
+import OnlinePlayerBoard from './Modes/Online/OnlinePlayerBoard';
 import EndgameResults from '../Endgame/EndgameResults';
 
 export function GameBoard({ 
@@ -17,7 +17,8 @@ export function GameBoard({
     myParticipantId,
     turnNumber: parentTurnNumber,
     roomCode,
-    gameMode = 'shared'
+    gameMode = 'shared',
+    isLocal: isLocalProp = true
 }) {
     const [sectorsState, setSectorsState] = useState([]);
     const [currentChallenge, setCurrentChallenge] = useState({});
@@ -53,7 +54,8 @@ export function GameBoard({
     // ─────────────────────────────────────────────────────────────────────────
 
     // ── Detectar si es un juego local (sin BD) ─────────────────────────────
-    const isLocalGame = roomCode && roomCode.startsWith('LOCAL_');
+    // Combinamos la prop isLocal con la detección del roomCode LOCAL_
+    const isLocalGame = isLocalProp || (roomCode && roomCode.startsWith('LOCAL_'));
 
     // ── Carga de retos desde el servidor (avanzar turno) ─────────────────────
     const nextChallenge = useCallback(async () => {
@@ -65,7 +67,8 @@ export function GameBoard({
                 setCurrentChallenge(response.data);
                 setTurnNumber(prev => prev + 1);
             } else {
-                const response = await axios.post(`/api/game/${roomCode}/advance`);
+                const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
+                const response = await axios.post(`/api/game/${cleanCode}/advance`);
                 // Si la respuesta incluye el gameState, actualizamos directamente por si fallan los WebSockets
                 if (response.data && response.data.gameState) {
                     const { state, challenge, turnNumber: newTurn, sectors: newSectors, outcome, temperature } = response.data.gameState;
@@ -106,7 +109,8 @@ export function GameBoard({
     // ── Carga del estado inicial para modo ONLINE (sin esperar WebSocket) ────
     useEffect(() => {
         if (!roomCode || isLocalGame) return;
-        axios.get(`/api/juego/${roomCode}/estado`)
+        const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
+        axios.get(`/api/juego/${cleanCode}/estado`)
             .then(res => {
                 const data = res.data;
                 if (data.sectors) setSectorsState(data.sectors);
@@ -177,9 +181,8 @@ export function GameBoard({
             );
         }
 
-        // Si es modo SOLO, siempre usamos el tablero local interactivo, 
-        // incluso si hay roomCode (porque el jugador juega en esta misma pantalla)
-        if (gameMode === 'solo') {
+        // Lógica de visualización basada en isLocalGame
+        if (isLocalGame) {
             return (
                 <LocalDisplayBoard 
                     sectors={sectors} 
@@ -192,12 +195,7 @@ export function GameBoard({
                     myPlayerName={myPlayerName}
                 />
             );
-        }
-
-        // Si hay un roomCode real (online), forzamos el tablero interactivo del jugador
-        const isOnline = roomCode && !roomCode.startsWith('LOCAL_');
-
-        if (isOnline) {
+        } else {
             return (
                 <OnlinePlayerBoard 
                     sectors={sectors} 
@@ -207,54 +205,9 @@ export function GameBoard({
                     myParticipantId={myParticipantId} 
                     myPlayerName={myPlayerName} 
                     turnNumber={serverGameState?.turnNumber || parentTurnNumber}
-                    visualPhase={serverGameState?.challenge?.visual_phase || visualPhase} 
+                    visualPhase={serverGameState?.challenge?.visual_phase || visualPhase}
                 />
             );
-        }
-
-        switch (gameMode) {
-            case 'shared':
-            case 'solo':
-                return (
-                    <LocalDisplayBoard 
-                        sectors={sectors} 
-                        challenge={currentChallenge} 
-                        roomCode={roomCode} 
-                        turnNumber={turnNumber} 
-                        onNextChallenge={nextChallenge}
-                        visualPhase={visualPhase}
-                        myParticipantId={myParticipantId}
-                        myPlayerName={myPlayerName}
-                    />
-                );
-            
-            case 'small':
-            case 'multiplayer':
-            case 'classic':
-            case 'class':
-                return (
-                    <OnlinePlayerBoard 
-                        sectors={sectors} 
-                        challenge={currentChallenge} 
-                        roomCode={roomCode} 
-                        myRoles={myRoles} 
-                        myParticipantId={myParticipantId} 
-                        myPlayerName={myPlayerName} 
-                        turnNumber={serverGameState?.turnNumber || parentTurnNumber}
-                        visualPhase={serverGameState?.challenge?.visual_phase || visualPhase}
-                    />
-                );
-            
-            default:
-                return (
-                    <LocalDisplayBoard 
-                        sectors={sectors} 
-                        challenge={currentChallenge} 
-                        roomCode={roomCode} 
-                        turnNumber={turnNumber} 
-                        visualPhase={visualPhase}
-                    />
-                );
         }
     };
 

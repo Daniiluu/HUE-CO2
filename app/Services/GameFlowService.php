@@ -154,16 +154,15 @@ class GameFlowService
 
         if ($numParticipantes === 0) return;
 
-        // Obtener los 6 sectores de la base de datos y mezclarlos
+        // Obtener los 6 sectores únicos de la base de datos y mezclarlos
         $rolesIds = DB::table('roles')->pluck('rol_id')->shuffle()->values();
-        $numRoles = $rolesIds->count();
-
-        // Limpiar asignaciones previas para evitar duplicados
+        
+        // Limpiar absolutamente todas las asignaciones previas de este juego
         DB::table('juego_participante')->where('juego_id', $juego->juego_id)->delete();
 
         $inserts = [];
 
-        // Reparto equitativo: repartimos los 6 roles entre los N participantes usando el operador modulo
+        // Reparto equitativo y único de los 6 roles entre los participantes conectados
         foreach ($rolesIds as $i => $rol_id) {
             $p = $participantes[$i % $numParticipantes];
             $inserts[] = [
@@ -310,7 +309,7 @@ class GameFlowService
                 }
             }
 
-            $tokensGanados = 0; $puntosGanados = 0; $penalizacion = 0; $esCorrecto = false;
+            $tokensGanados = 0; $puntosGanados = 0; $penalizacion = 0; $esCorrecto = false; $resultado = null; $isPartial = false;
 
             // Verificamos si realmente no hay voto (ni directo ni por validación) o si el resultado está vacío
             if (!$voto || (isset($voto->resultado) && ($voto->resultado === null || $voto->resultado === ''))) {
@@ -328,8 +327,7 @@ class GameFlowService
                         $puntosGanados = 1;
                         $mensaje = "¡Respuesta Correcta! +{$tokensGanados} ET";
                     } elseif ($resultado === 'partial') {
-                        // Las parciales ahora NO bajan la temperatura (neutral)
-                        $esCorrecto  = false; 
+                        $isPartial = true;
                         $tokensGanados = (int)ceil(($carta->puntos ?: 2) / 2);
                         $puntosGanados = 1;
                         $mensaje = "Respuesta Parcial. +{$tokensGanados} ET";
@@ -360,6 +358,7 @@ class GameFlowService
                             $esCorrecto  = true;
                             $tokensGanados = ($media >= 0.8) ? ($carta->puntos ?: 2) : (int)ceil(($carta->puntos ?: 2) / 2);
                             $puntosGanados = 1;
+                            $isPartial = ($media < 0.8);
                             $mensaje = $media >= 0.8
                                 ? "¡Aprobado por mayoría! +{$tokensGanados} ET"
                                 : "Aprobado parcial. +{$tokensGanados} ET";
@@ -435,10 +434,13 @@ class GameFlowService
                 if ($cambio < 0) $juego->total_reduccion += abs($cambio);
                 \Log::info("[HUE-CO2] Cambio Temp (Evento): {$cambio} | Total: {$juego->temperatura}");
             } else {
-                if ($esCorrecto) {
+                if ($esCorrecto && !$isPartial) {
                     $juego->temperatura -= 0.1;
                     $juego->total_reduccion += 0.1;
                     \Log::info("[HUE-CO2] Cambio Temp (Acierto/Evento OK): -0.1 | Total: {$juego->temperatura}");
+                } elseif ($isPartial) {
+                    // Parcial: Neutral, no cambia la temperatura
+                    \Log::info("[HUE-CO2] Cambio Temp (Parcial): 0 | Total: {$juego->temperatura}");
                 } else {
                     $juego->temperatura += 0.1;
                     $juego->total_calentamiento += 0.1;

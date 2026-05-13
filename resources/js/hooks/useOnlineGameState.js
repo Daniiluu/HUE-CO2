@@ -10,8 +10,9 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     const { setTimeLeft, setIsPaused } = useGame();
     console.log("[HUE-CO2] Hook cargado. setTimeLeft disponible:", typeof setTimeLeft === 'function');
     
+    const cleanRoomCode = (roomCode || '').toString().replace(/\s/g, '');
     // 1. Conexión WebSocket
-    const { isConnected, gameState: serverGameState, chatMessages: serverChat, sendChatMessage } = useGameChannel(roomCode, 'player', myPlayerName);
+    const { isConnected, gameState: serverGameState, chatMessages: serverChat, sendChatMessage } = useGameChannel(cleanRoomCode, 'player', myPlayerName);
     
     // 2. Estados locales de votación
     const [votedChallengeId, setVotedChallengeId] = useState(null);
@@ -35,10 +36,14 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         (normalize(myPlayerName) === 'anfitrion' && normalize(activePlayerNameRaw) === 'anfitrion')
     ), [activePlayerNameRaw, myPlayerName]);
 
-    const myAssignedRoles = useMemo(() => sectors.filter(s => 
-        normalize(s.playerName) === normalize(myPlayerName) || 
-        (normalize(myPlayerName) === 'anfitrion' && normalize(s.playerName) === 'anfitrion')
-    ), [sectors, myPlayerName]);
+    const myAssignedRoles = useMemo(() => {
+        if (!sectors || sectors.length === 0) return [];
+        return sectors.filter(s => {
+            const sName = normalize(s.playerName);
+            const myName = normalize(myPlayerName);
+            return sName === myName || (myName === 'anfitrion' && sName === 'anfitrion');
+        });
+    }, [sectors, myPlayerName]);
 
     const hasVoted = votedChallengeId === currentChallenge?.id;
 
@@ -60,7 +65,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             if (normalize(myPlayerName) === 'anfitrion') {
                 const timer = setTimeout(() => {
                     console.log("[HUE-CO2] Auto-avanzando desde Resultados...");
-                    axios.post(`/api/game/${roomCode}/advance`).catch(e => console.error(e));
+                    axios.post(`/api/game/${cleanRoomCode}/advance`).catch(e => console.error(e));
                 }, 4500);
                 return () => clearTimeout(timer);
             }
@@ -91,7 +96,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         }
 
         try {
-            const response = await axios.post(`/api/game/${roomCode}/vote`, {
+            const response = await axios.post(`/api/game/${cleanRoomCode}/vote`, {
                 sector_id: currentChallenge?.activeSectorId,
                 player_name: myPlayerName || 'Jugador Online',
                 answer: cleanAnswer,
@@ -105,7 +110,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             // Si es online puro (sin LocalDisplayBoard manejando el avance), avanzamos el turno.
             if (!roomCode.startsWith('LOCAL_')) {
                 setTimeout(() => {
-                    axios.post(`/api/game/${roomCode}/advance`).catch(e => console.error(e));
+                    axios.post(`/api/game/${cleanRoomCode}/advance`).catch(e => console.error(e));
                 }, 2500);
             }
 

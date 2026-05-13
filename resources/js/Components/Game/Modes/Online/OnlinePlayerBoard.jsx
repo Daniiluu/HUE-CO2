@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, CheckCircle2, Users, Cpu, Shirt, FlaskConical, Tractor, Landmark, Hexagon, Clock, LogOut, X } from 'lucide-react';
-import { useGame } from '../Core/GameProvider';
-import { useOnlineGameState } from '../../../hooks/useOnlineGameState';
-import ChallengeCard from '../UI/ChallengeCard';
-import GlobalThermometer from '../UI/GlobalThermometer';
-import OrbitalBoard from '../UI/OrbitalBoard';
-import GameClock from '../UI/GameClock';
-import { ROLES } from '../../../data/gameData';
+import { useGame } from '../../Core/GameProvider';
+import { useOnlineGameState } from '../../../../hooks/useOnlineGameState';
+import ChallengeCard from '../../UI/ChallengeCard';
+import GlobalThermometer from '../../UI/GlobalThermometer';
+import OrbitalBoard from '../../UI/OrbitalBoard';
+import GameClock from '../../UI/GameClock';
+import { ROLES } from '../../../../data/gameData';
 import { Sparkles, Info, Zap as ZapIcon } from 'lucide-react';
+import FeedbackOverlay from '../../UI/FeedbackOverlay';
 
 const figmaColors = {
     'ciencia':    { bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', iconClass: 'text-[#9640FF]' },

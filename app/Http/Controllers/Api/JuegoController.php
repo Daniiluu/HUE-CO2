@@ -32,6 +32,7 @@ class JuegoController extends Controller
 
         $juego = Juego::create([
             'modo'        => $request->modo,
+            'is_local'    => $request->input('is_local', true),
             'max_players' => $request->max_players ?? 6,
             'temperatura' => 0,
             'anillo_id'   => $request->anillo_id,
@@ -45,10 +46,13 @@ class JuegoController extends Controller
             'user_id' => $request->user()?->id,
         ]);
 
-        // Solo unir al host como participante si NO es modo local O si es modo solo
-        if (!$request->input('is_local', false) || $request->modo === 'solo') {
+        // Unir al host como participante si es Online o modo Solo
+        // Forzamos la unión si is_local es false (Online)
+        $isLocal = filter_var($request->input('is_local', true), FILTER_VALIDATE_BOOLEAN);
+        
+        if (!$isLocal || $request->modo === 'solo') {
             $juego->participantes()->attach($participante->participante_id, [
-                'rol_id'     => null, // Se asignará al empezar
+                'rol_id'     => null, 
                 'eco_fichas' => 12,
                 'puntuacion' => 0,
             ]);

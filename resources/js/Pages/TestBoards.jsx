@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { GameBoard } from '../Components/Game/GameBoard';
-import MobileController from '../Components/Game/Modes/MobileController';
+import MobileController from '../Components/Game/Modes/Local/MobileController';
 import { ROLES } from '../data/gameData';
 
 export default function TestBoards() {

@@ -57,7 +57,8 @@ class GameController extends Controller
             $validated['sector_id'] = 'ciudadania';
         }
 
-        $juego = Juego::where('room_code', $roomCode)->firstOrFail();
+        $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        $juego = Juego::where('room_code', $cleanCode)->firstOrFail();
 
         // Validar si es correcta (solo para tipo opciones)
         $isCorrect = null;
@@ -138,7 +139,8 @@ class GameController extends Controller
             'proposal_text' => 'required|string|max:1000',
         ]);
 
-        $juego = Juego::where('room_code', $roomCode)->firstOrFail();
+        $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        $juego = Juego::where('room_code', $cleanCode)->firstOrFail();
 
         // Guardar la propuesta en la BD para que persista al refrescar
         Turno::updateOrCreate(
@@ -183,7 +185,8 @@ class GameController extends Controller
      */
     public function advance(string $roomCode): JsonResponse
     {
-        $juego = Juego::where('room_code', $roomCode)->firstOrFail();
+        $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        $juego = Juego::where('room_code', $cleanCode)->firstOrFail();
 
         // Si es el inicio de la partida (turno 0) y estamos en el lobby,
         // el servicio GameFlowService se encargará de repartir los roles automáticamente
@@ -287,7 +290,8 @@ class GameController extends Controller
      */
     public function estado(string $roomCode): JsonResponse
     {
-        $juego = Juego::where('room_code', $roomCode)->first();
+        $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        $juego = Juego::where('room_code', $cleanCode)->first();
 
         if (!$juego) {
             return response()->json(['error' => 'Sala no encontrada'], 404);
@@ -316,6 +320,36 @@ class GameController extends Controller
             'turnNumber'  => $juego->current_turn,
             'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
             'outcome'     => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null
+        ]);
+    }
+
+    /**
+     * Renderiza la página del tablero (GameDisplay)
+     */
+    public function board(string $roomCode)
+    {
+        $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        $juego = Juego::where('room_code', $cleanCode)->first();
+        
+        \Log::info("[HUE-CO2] Cargando tablero para sala: {$cleanCode}");
+
+        $user = auth()->user();
+        $participanteId = null;
+        
+        if ($user && $juego) {
+            $participanteId = \Illuminate\Support\Facades\DB::table('juego_participante')
+                ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
+                ->where('juego_participante.juego_id', $juego->juego_id)
+                ->where('participantes.user_id', $user->id)
+                ->value('participantes.participante_id');
+        }
+
+        return \Inertia\Inertia::render('GameDisplay', [
+            'roomCode' => $cleanCode,
+            'initialMode' => request('mode', 'shared'),
+            'isLocal' => $juego ? (bool)$juego->is_local : true,
+            'myPlayerName' => $user ? ($user->username ?? $user->name) : request('playerName', 'Anfitrión'),
+            'myParticipantId' => $participanteId ?? request('participantId')
         ]);
     }
 }
