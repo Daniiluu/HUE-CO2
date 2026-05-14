@@ -309,8 +309,8 @@ export default function GuestPortal({ pin = null }) {
                                 gameMode={mode || 'multiplayer'}
                                 isLocal={isLocal}
                                 myRoles={myRoles}
-                                myPlayerName={myPlayerName}
                                 myParticipantId={myParticipantId}
+                                isHost={isHost}
                                 onEnd={(win) => console.log('Game Over:', win)}
                             />
                         ) : (

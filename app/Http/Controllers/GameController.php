@@ -287,6 +287,35 @@ class GameController extends Controller
     }
 
     /**
+     * POST /api/game/{roomCode}/heartbeat
+     * Los jugadores envían un ping periódico para decir "sigo aquí".
+     */
+    public function heartbeat(Request $request, string $roomCode): JsonResponse
+    {
+        $participanteId = $request->input('participante_id');
+        \Log::info("[HUE-CO2] Heartbeat recibido de participante: {$participanteId} en sala {$roomCode}");
+        
+        if (!$participanteId) {
+            return response()->json(['error' => 'ID de participante requerido'], 400);
+        }
+
+        $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        $juego = Juego::where('room_code', $cleanCode)->first();
+        
+        if (!$juego) {
+            return response()->json(['error' => 'Sala no encontrada'], 404);
+        }
+
+        // Actualizar el timestamp en la tabla pivot
+        DB::table('juego_participante')
+            ->where('juego_id', $juego->juego_id)
+            ->where('participante_id', $participanteId)
+            ->update(['last_seen_at' => now()]);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
      * GET /api/juego/{roomCode}/estado
      * Retorna el estado actual del juego (sectores, jugadores, reto activo).
      */
@@ -299,12 +328,26 @@ class GameController extends Controller
             return response()->json(['error' => 'Sala no encontrada'], 404);
         }
 
+        // Auto-rescate automático de sectores (cada 10s para no saturar la BD)
+        $cacheKey = "juego_rescue_{$juego->juego_id}";
+        if ($juego->estado === 'playing' && !\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+            app(\App\Services\GameFlowService::class)->redistributeInactiveRoles($juego);
+            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 10);
+        }
+
         // Obtener TODOS los roles de cada participante con sus slugs correctos
         $sectors = DB::table('juego_participante')
             ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
-            ->select('participantes.usuario', 'juego_participante.participante_id', 'roles.slug', 'juego_participante.eco_fichas', 'juego_participante.puntuacion')
+            ->select(
+                'participantes.usuario', 
+                'juego_participante.participante_id', 
+                'roles.slug', 
+                'juego_participante.eco_fichas', 
+                'juego_participante.puntuacion',
+                'juego_participante.last_seen_at'
+            )
             ->get()
             ->map(fn($row) => [
                 'id'         => $row->slug ?: 'ciudadania',
@@ -312,6 +355,8 @@ class GameController extends Controller
                 'points'     => $row->puntuacion ?? 0,
                 'playerName' => $row->usuario,
                 'participanteId' => (int) $row->participante_id,
+                'lastSeen'   => $row->last_seen_at,
+                'isInactive' => $row->last_seen_at ? (\Carbon\Carbon::parse($row->last_seen_at)->diffInSeconds(now()) > 15) : false
             ]);
 
         // Calcular tiempo restante para sincronización de late-joiners
@@ -323,6 +368,12 @@ class GameController extends Controller
             $timeLeft = (int) max(0, $totalDuration - $elapsed);
         }
 
+        // Identificar al anfitrión (el que se unió primero)
+        $hostId = DB::table('juego_participante')
+            ->where('juego_id', $juego->juego_id)
+            ->orderBy('created_at', 'asc')
+            ->value('participante_id');
+
         return response()->json([
             'state'       => $juego->estado === 'playing' ? 'challenge' : $juego->estado,
             'challenge'   => $this->getChallengeData($juego),
@@ -333,7 +384,8 @@ class GameController extends Controller
             'totalReduction' => $juego->total_reduccion,
             'turnNumber'  => $juego->current_turn,
             'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
-            'outcome'     => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null
+            'outcome'     => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null,
+            'hostId'      => $hostId
         ]);
     }
 

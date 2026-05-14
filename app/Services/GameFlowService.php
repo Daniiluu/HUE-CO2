@@ -174,6 +174,7 @@ class GameFlowService
                 'rol_id'          => $rol_id,
                 'eco_fichas'      => 12,
                 'puntuacion'      => 0,
+                'last_seen_at'    => now(),
                 'created_at'      => now(),
                 'updated_at'      => now(),
             ];
@@ -525,5 +526,83 @@ class GameFlowService
             'activeSectorId' => $activeRol ? $activeRol->slug : null,
             'turn' => (($juego->current_turn - 1) % 6) + 1,
         ];
+    }
+
+    /**
+     * Redistribuye los roles de los jugadores inactivos entre los que siguen conectados.
+     */
+    public function redistributeInactiveRoles(Juego $juego)
+    {
+        // 1. Identificar participantes inactivos (más de 25 segundos sin señales)
+        $threshold = now()->subSeconds(25);
+        
+        $inactivosIds = DB::table('juego_participante')
+            ->where('juego_id', $juego->juego_id)
+            ->where(function($query) use ($threshold) {
+                $query->where('last_seen_at', '<', $threshold)
+                      ->orWhereNull('last_seen_at');
+            })
+            ->pluck('participante_id')
+            ->unique()
+            ->toArray();
+
+        if (empty($inactivosIds)) return;
+
+        // 2. Identificar participantes ACTIVOS
+        $activosIds = DB::table('juego_participante')
+            ->where('juego_id', $juego->juego_id)
+            ->where('last_seen_at', '>=', $threshold)
+            ->pluck('participante_id')
+            ->unique()
+            ->toArray();
+
+        // Si no hay nadie activo, no podemos redistribuir
+        if (empty($activosIds)) return;
+
+        \Log::info("[HUE-CO2] Reasignando sectores de " . count($inactivosIds) . " jugadores inactivos en sala {$juego->room_code}");
+
+        // 3. Reasignar cada sector del inactivo a un activo al azar
+        foreach ($inactivosIds as $inactivoId) {
+             $roles = DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->where('participante_id', $inactivoId)
+                ->whereNotNull('rol_id')
+                ->pluck('rol_id');
+
+             if ($roles->isEmpty()) {
+                 DB::table('juego_participante')
+                    ->where('juego_id', $juego->juego_id)
+                    ->where('participante_id', $inactivoId)
+                    ->delete();
+                 continue;
+             }
+
+             foreach($roles as $rolId) {
+                $nuevoDuenioId = $activosIds[array_rand($activosIds)];
+                
+                \Log::info("[HUE-CO2] Trasladando rol {$rolId} de participante {$inactivoId} a {$nuevoDuenioId}");
+                
+                DB::table('juego_participante')
+                    ->where('juego_id', $juego->juego_id)
+                    ->where('participante_id', $inactivoId)
+                    ->where('rol_id', $rolId)
+                    ->update(['participante_id' => $nuevoDuenioId]);
+             }
+
+             // Notificar en el chat antes de borrar definitivamente
+             $nombreInactivo = DB::table('participantes')->where('participante_id', $inactivoId)->value('usuario') ?? 'Un jugador';
+             try {
+                 event(new \App\Events\ChatMessageReceived($juego->room_code, 'Sistema', "El jugador {$nombreInactivo} se ha desconectado. Sus sectores han sido reasignados."));
+             } catch (\Exception $e) {
+                 \Log::error("[HUE-CO2] Error enviando mensaje de desconexión: " . $e->getMessage());
+             }
+             
+             DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->where('participante_id', $inactivoId)
+                ->delete();
+        }
+        
+        $juego->load('participantes');
     }
 }

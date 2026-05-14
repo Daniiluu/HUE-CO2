@@ -55,6 +55,7 @@ class JuegoController extends Controller
                 'rol_id'     => null, 
                 'eco_fichas' => 12,
                 'puntuacion' => 0,
+                'last_seen_at' => now(),
             ]);
         }
 
@@ -151,7 +152,11 @@ class JuegoController extends Controller
         $existingParticipante = $existingQuery->first();
 
         if ($existingParticipante) {
-            // Si ya estaba en la sala, simplemente lo devolvemos
+            // Actualizar last_seen_at al reconectarse
+            $juego->participantes()->updateExistingPivot($existingParticipante->participante_id, [
+                'last_seen_at' => now()
+            ]);
+
             return response()->json([
                 'message' => 'Te has reconectado a la partida',
                 'participante' => $existingParticipante,
@@ -159,24 +164,22 @@ class JuegoController extends Controller
             ]);
         }
 
-        // Verificar si la sala ya está llena
-        // Contamos participantes distintos para que si alguien tiene varios roles asignados (pivot rows) no cuente como múltiple
-        $uniqueCount = clone $juego->participantes();
-        $count = $uniqueCount->distinct('participantes.participante_id')->count('participantes.participante_id');
-
+        // Verificar si la sala ya está llena ANTES de crear al participante
+        $count = $juego->participantes()->distinct('participantes.participante_id')->count('participantes.participante_id');
         if ($juego->max_players && $count >= $juego->max_players) {
             return response()->json(['error' => 'La sala ya está completa'], 403);
         }
 
+        // Si no existe, crear y adjuntar con timestamp de actividad inicial
         $participante = Participante::create($participanteData);
-
         $juego->participantes()->attach($participante->participante_id, [
             'rol_id'     => $request->rol_id,
             'eco_fichas' => 12,
             'puntuacion' => 0,
+            'last_seen_at' => now(),
         ]);
 
-        // Disparar evento para tiempo real (si falla Reverb, el jugador sigue unido)
+        // Disparar evento para tiempo real
         try {
             PlayerJoined::dispatch($juego->room_code, $participante->usuario, $participante->participante_id);
         } catch (\Exception $e) {

@@ -63,7 +63,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                     id: Date.now() + Math.random(),
                     user: e.playerName,
                     text: e.message,
-                    type: 'user'
+                    type: e.playerName === 'Sistema' ? 'system' : 'user'
                 }]);
             })
             .subscribed(() => {
@@ -82,6 +82,25 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
             setIsConnected(false);
         };
     }, [cleanRoomCode]);
+
+    // ── Heartbeat (Seguimiento de actividad) ──────────────────────────────────
+    useEffect(() => {
+        if (!cleanRoomCode || !participanteId || cleanRoomCode.startsWith('LOCAL_')) return;
+
+        const sendHeartbeat = async () => {
+            try {
+                await axios.post(`/api/game/${cleanRoomCode}/heartbeat`, {
+                    participante_id: participanteId
+                });
+            } catch (err) {
+                console.warn('[HUE-CO2] Heartbeat failed');
+            }
+        };
+
+        sendHeartbeat();
+        const interval = setInterval(sendHeartbeat, 10000);
+        return () => clearInterval(interval);
+    }, [cleanRoomCode, participanteId]);
 
     // ── Polling de respaldo (por si falla WebSockets) ─────────────────────────
     useEffect(() => {
@@ -115,10 +134,17 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                                 totalHeating: res.data.totalHeating || 0,
                                 totalReduction: res.data.totalReduction || 0,
                                 lastTurnCorrect: res.data.lastTurnCorrect || false,
-                                outcome: res.data.outcome || null
+                                outcome: res.data.outcome || null,
+                                hostId: res.data.hostId || null
                             };
                         }
-                        return prev;
+                        // Aunque no haya cambiado el estado, siempre actualizar sectors y hostId
+                        // para que isInactive e isActuallyHost sean siempre frescos
+                        return {
+                            ...prev,
+                            sectors: res.data.sectors,
+                            hostId: res.data.hostId || null
+                        };
                     });
                 }
             } catch (error) {
