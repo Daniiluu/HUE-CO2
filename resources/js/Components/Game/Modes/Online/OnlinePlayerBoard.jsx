@@ -32,7 +32,18 @@ const getRoleIcon = (iconName, id) => {
     return icons[id] || icons[iconName] || <Hexagon className="w-full h-full" strokeWidth={2.5} />;
 };
 
-export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myParticipantId, myPlayerName, turnNumber, myRoles = [], visualPhase = 1, initialTimeLeft = 30 }) {
+export default function OnlinePlayerBoard({ 
+    sectors, 
+    challenge, 
+    roomCode, 
+    myParticipantId, 
+    myPlayerName, 
+    turnNumber, 
+    myRoles = [], 
+    visualPhase = 1, 
+    initialTimeLeft = 30,
+    isHost = false
+}) {
     const { intensity, setIntensity, timeLeft } = useGame();
     const [chatInput, setChatInput] = useState('');
 
@@ -41,7 +52,7 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
         isConnected, serverGameState, currentChallenge, isMyTurn, hasVoted,
         myAssignedRoles, activePlayerName, lastFeedback, setLastFeedback,
         serverChat, localMessages, setLocalMessages, sendChatMessage,
-        handleVote, resetMando
+        handleVote, resetMando, isActivePlayerInactive
     } = useOnlineGameState(roomCode, myPlayerName, challenge, sectors, myParticipantId, initialTimeLeft);
 
     // Calcular el turno relativo (1-6) dentro del anillo actual
@@ -114,7 +125,8 @@ export default function OnlinePlayerBoard({ sectors, challenge, roomCode, myPart
                         return {
                             ...s,
                             points: serverSector?.points ?? s.points,
-                            ringResults: serverSector?.ringResults ?? []
+                            ringResults: serverSector?.ringResults ?? [],
+                            isInactive: serverSector?.isInactive ?? false
                         };
                     })} 
                     activeSectorId={currentChallenge?.activeSectorId} 

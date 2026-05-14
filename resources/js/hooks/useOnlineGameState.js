@@ -21,8 +21,8 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     
     const cleanRoomCode = (roomCode || '').toString().replace(/\s/g, '');
     // 1. Conexión WebSocket
-    const { isConnected, gameState: serverGameState, chatMessages: serverChat, sendChatMessage } = useGameChannel(cleanRoomCode, 'player', myPlayerName);
-    
+    const { isConnected, gameState: serverGameState, chatMessages: serverChat, sendChatMessage } = useGameChannel(cleanRoomCode, 'player', myPlayerName, myParticipantId);
+
     // 2. Estados locales de votación
     const [votedChallengeId, setVotedChallengeId] = useState(null);
     const [lastFeedback, setLastFeedback] = useState(null);
@@ -34,9 +34,18 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     
     const normalize = (str) => str?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() || "";
 
+    // Sectores enriquecidos con datos frescos del servidor (isInactive, points, etc.)
+    const liveSectors = useMemo(() => {
+        const serverSectors = serverGameState?.sectors || [];
+        return sectors.map(s => {
+            const serverSector = serverSectors.find(ss => ss.id === s.id);
+            return serverSector ? { ...s, ...serverSector } : s;
+        });
+    }, [sectors, serverGameState?.sectors]);
+
     const activeSectorInChallenge = useMemo(() => 
-        sectors.find(s => s.id === currentChallenge?.activeSectorId),
-    [sectors, currentChallenge?.activeSectorId]);
+        liveSectors.find(s => s.id === currentChallenge?.activeSectorId),
+    [liveSectors, currentChallenge?.activeSectorId]);
 
     const activePlayerNameRaw = activeSectorInChallenge?.playerName || '';
     const activeParticipanteId = activeSectorInChallenge?.participanteId;
@@ -172,6 +181,8 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         setLocalMessages,
         sendChatMessage,
         handleVote,
-        resetMando
+        resetMando,
+        isActivePlayerInactive: activeSectorInChallenge?.isInactive || false,
+        isActuallyHost: serverGameState?.hostId === (Number(myParticipantId) || myParticipantId)
     };
 }

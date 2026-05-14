@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Users, Database, Shirt, FlaskConical, Sprout, Landmark, Hexagon 
+    Users, Database, Shirt, FlaskConical, Sprout, Landmark, Hexagon, WifiOff 
 } from 'lucide-react';
 
 const SECTOR_CONFIG = {
@@ -137,6 +137,7 @@ export default function OrbitalBoard({ sectors, activeSectorId = null, visualPha
                     const y = 50 + radiusPercent * Math.sin(angle);
 
                     const isActive = p.id === activeSectorId;
+                    const isInactive = p.isInactive;
                     const config = SECTOR_CONFIG[p.id] || { bg: 'bg-slate-200', border: 'border-slate-400', icon: <Hexagon /> };
 
                     return (
@@ -144,11 +145,11 @@ export default function OrbitalBoard({ sectors, activeSectorId = null, visualPha
                             key={p.id}
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className={`absolute w-[4.5vw] h-[4.5vw] min-w-[45px] min-h-[45px] -ml-[2.25vw] -mt-[2.25vw] rounded-full ${config.bg} flex items-center justify-center z-20 shadow-xl border-4 ${isActive ? 'border-yellow-400 scale-125 z-30' : config.border} transition-all duration-500`}
+                            className={`absolute w-[4.5vw] h-[4.5vw] min-w-[45px] min-h-[45px] -ml-[2.25vw] -mt-[2.25vw] rounded-full ${config.bg} flex items-center justify-center z-20 shadow-xl border-4 ${isActive ? (isInactive ? 'border-red-400' : 'border-yellow-400') : config.border} ${isInactive ? 'opacity-40 grayscale' : 'opacity-100'} transition-all duration-500`}
                             style={{ left: `${x}%`, top: `${y}%` }}
                         >
-                            <div className={`w-[60%] h-[60%] ${isActive ? 'text-yellow-600' : ''}`}>
-                                {config.icon}
+                            <div className={`w-[60%] h-[60%] ${isActive ? (isInactive ? 'text-red-600' : 'text-yellow-600') : ''}`}>
+                                {isInactive ? <WifiOff className="w-full h-full" /> : config.icon}
                             </div>
                             
                             {/* Halo de actividad */}

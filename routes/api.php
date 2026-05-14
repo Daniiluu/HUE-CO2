@@ -50,6 +50,7 @@ Route::post('/game/{roomCode}/proposal', [GameController::class, 'proposal']);
 Route::post('/game/{roomCode}/chat',     [GameController::class, 'chat']);
 Route::post('/game/{roomCode}/advance',  [GameController::class, 'advance']);
 Route::get('/juego/{roomCode}/estado',   [GameController::class, 'estado']);
+Route::post('/game/{roomCode}/heartbeat', [GameController::class, 'heartbeat']);
 Route::post('/juegos/join',              [JuegoController::class, 'unirse'])->middleware('throttle:10,1');
 
 // ── Rutas protegidas (requieren token) ──────────────────────

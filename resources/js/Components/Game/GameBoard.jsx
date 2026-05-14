@@ -15,6 +15,7 @@ export function GameBoard({
     myRoles = [],
     myPlayerName,
     myParticipantId,
+    isHost = false,
     turnNumber: parentTurnNumber,
     roomCode,
     gameMode = 'shared',
@@ -207,7 +208,8 @@ export function GameBoard({
                     roomCode={roomCode} 
                     myRoles={myRoles} 
                     myParticipantId={myParticipantId} 
-                    myPlayerName={myPlayerName} 
+                    myPlayerName={myPlayerName}
+                    isHost={isHost}
                     turnNumber={serverGameState?.turnNumber || parentTurnNumber}
                     visualPhase={serverGameState?.challenge?.visual_phase || visualPhase}
                     initialTimeLeft={initialTimeLeft}
