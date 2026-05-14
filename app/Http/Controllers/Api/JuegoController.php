@@ -76,8 +76,15 @@ class JuegoController extends Controller
     public function update(Request $request, $id)
     {
         $juego = Juego::findOrFail($id);
+        $oldEstado = $juego->estado;
 
         $juego->update($request->only(['modo', 'max_players', 'temperatura', 'anillo_id', 'estado']));
+
+        // Si la partida comienza (pasa de lobby a playing), inicializar turnos y roles
+        if ($oldEstado === 'lobby' && $juego->estado === 'playing' && $juego->current_turn === 0) {
+            $gameFlow = app(\App\Services\GameFlowService::class);
+            $gameFlow->advanceTurn($juego);
+        }
 
         return response()->json([
             'message' => 'Juego actualizado',
@@ -136,10 +143,9 @@ class JuegoController extends Controller
             // Si el cliente está autenticado, buscamos un participante vinculado a su user_id
             $existingQuery->where('participantes.user_id', $request->user()->id);
         } else {
-            // Si es un invitado anónimo, buscamos un participante con ese nombre que TAMBIÉN sea anónimo
-            // Esto evita que un invitado se "apodere" del puesto del anfitrión por llamarse igual
-            $existingQuery->where('participantes.usuario', $participanteData['usuario'])
-                          ->whereNull('participantes.user_id');
+            // Para invitados anónimos, desactivamos la reconexión por nombre para permitir duplicados (admin vs admin)
+            // En el futuro podríamos usar un token en localStorage para permitir reconexión real
+            $existingQuery->whereRaw('1 = 0'); // No encontrar a nadie por nombre
         }
         
         $existingParticipante = $existingQuery->first();

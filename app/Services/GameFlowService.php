@@ -157,7 +157,10 @@ class GameFlowService
         // Obtener los 6 sectores únicos de la base de datos y mezclarlos
         $rolesIds = DB::table('roles')->pluck('rol_id')->shuffle()->values();
         
+        if (count($rolesIds) === 0) return;
+
         // Limpiar absolutamente todas las asignaciones previas de este juego
+        // (Esto elimina los registros de 'espera' sin rol asignado)
         DB::table('juego_participante')->where('juego_id', $juego->juego_id)->delete();
 
         $inserts = [];
@@ -177,6 +180,7 @@ class GameFlowService
         }
 
         DB::table('juego_participante')->insert($inserts);
+        
         $juego->load('participantes');
     }
 

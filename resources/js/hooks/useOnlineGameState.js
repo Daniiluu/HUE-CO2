@@ -55,12 +55,22 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
 
     const myAssignedRoles = useMemo(() => {
         if (!sectors || sectors.length === 0) return [];
+        
         return sectors.filter(s => {
+            // Prioridad absoluta al ID único para evitar colisiones de nombres (admin vs admin)
             if (s.participanteId && myParticipantId) {
                 return Number(s.participanteId) === Number(myParticipantId);
             }
+            
+            // Si hay IDs en el sector pero no coinciden con el mío, no es mi sector (punto)
+            if (s.participanteId && !myParticipantId) return false;
+
+            // Fallback por nombre solo si no hay IDs disponibles en absoluto (casos legacy)
             const sName = normalize(s.playerName);
             const myName = normalize(myPlayerName);
+            
+            if (sName === 'esperando...') return false;
+            
             return sName === myName || (myName === 'anfitrion' && sName === 'anfitrion');
         });
     }, [sectors, myParticipantId, myPlayerName]);

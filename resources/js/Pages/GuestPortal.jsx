@@ -82,8 +82,14 @@ export default function GuestPortal({ pin = null }) {
     // Actualizar datos del rol cuando el servidor manda el estado de sectores
     useEffect(() => {
         if (serverGameState && serverGameState.sectors) {
-            // Buscar todos los sectores que pertenecen a este jugador
-            const myServerSectors = serverGameState.sectors.filter(s => s.playerName === myPlayerName);
+            // Buscar todos los sectores que pertenecen a este jugador usando su ID único
+            const myServerSectors = serverGameState.sectors.filter(s => {
+                if (s.participanteId && myParticipantId) {
+                    return Number(s.participanteId) === Number(myParticipantId);
+                }
+                return s.playerName === myPlayerName;
+            });
+
             if (myServerSectors.length > 0) {
                 const assignedRoles = myServerSectors.map(s => ROLES.find(r => r.id === s.id)).filter(Boolean);
                 const totalTokens = myServerSectors.reduce((sum, s) => sum + (s.tokens || 0), 0);
@@ -92,7 +98,7 @@ export default function GuestPortal({ pin = null }) {
                 setMyTotalTokens(totalTokens);
             }
         }
-    }, [serverGameState, myPlayerName]);
+    }, [serverGameState, myPlayerName, myParticipantId]);
 
     const navigateTo = (newView) => {
         setView(newView);
@@ -310,7 +316,7 @@ export default function GuestPortal({ pin = null }) {
                         ) : (
                             <MobileController 
                                 roomCode={roomCode}
-                                participantId={myParticipantId}
+                                participanteId={myParticipantId}
                                 playerName={myPlayerName}
                                 roles={myRoles.length > 0 ? myRoles : [{ id: 'ciudadania', name: 'Ciudadanía' }]}
                                 tokens={myTotalTokens}

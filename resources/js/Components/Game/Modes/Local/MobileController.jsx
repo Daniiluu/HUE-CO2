@@ -73,7 +73,7 @@ export default function MobileController({
     challenge = {},
     gameState = 'challenge', // 'waiting' | 'challenge' | 'voted'
     roomCode = 'TEST-000',   // Código de sala para conectar al canal correcto
-    participantId = null,
+    participanteId = null,
     onDonate,
     onChat,
     onActivatePower,
@@ -96,7 +96,7 @@ export default function MobileController({
         roomCode,
         primaryRole?.id, // ID por defecto
         playerName,
-        participantId
+        participanteId
     );
 
     // Cuando el servidor cambia el estado del juego, actualizar nuestra vista

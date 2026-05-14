@@ -21,7 +21,7 @@ import axios from 'axios';
  *   isConnected:   boolean,
  * }}
  */
-export function useGameChannel(roomCode, sectorId, playerName, participantId = null) {
+export function useGameChannel(roomCode, sectorId, playerName, participanteId = null) {
     const cleanRoomCode = (roomCode || '').toString().replace(/\s/g, '');
     const channelRef = useRef(null);
 
@@ -141,7 +141,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             const res = await axios.post(`/api/game/${cleanRoomCode}/vote`, {
                 sector_id:       finalSectorId,
                 player_name:     playerName,
-                participant_id:  participantId,
+                participant_id:  participanteId,
                 answer,
                 type,
             });
@@ -150,7 +150,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             console.error('[HUE-CO2] Error al enviar voto:', err);
             return null;
         }
-    }, [cleanRoomCode, sectorId, playerName, participantId]);
+    }, [cleanRoomCode, sectorId, playerName, participanteId]);
 
     // ── Enviar Propuesta (Texto Libre) ────────────────────────────────────────
     const sendProposal = useCallback(async (text, sectorIdOverride = null) => {
@@ -160,13 +160,13 @@ export function useGameChannel(roomCode, sectorId, playerName, participantId = n
             await axios.post(`/api/game/${cleanRoomCode}/proposal`, {
                 sector_id:       finalSectorId,
                 player_name:     playerName,
-                participant_id:  participantId,
+                participant_id:  participanteId,
                 proposal_text:   text,
             });
         } catch (err) {
             console.error('[HUE-CO2] Error al enviar propuesta:', err);
         }
-    }, [cleanRoomCode, sectorId, playerName, participantId]);
+    }, [cleanRoomCode, sectorId, playerName, participanteId]);
     
     const sendChatMessage = useCallback(async (text) => {
         if (!cleanRoomCode || !text.trim()) return;
