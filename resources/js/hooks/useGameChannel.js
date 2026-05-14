@@ -49,12 +49,14 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                 });
             })
             .listen('GameStateChanged', (e) => {
-                setGameState(e);
-                // Si el host cambia de reto, limpiar los votos anteriores
-                if (e.state === 'challenge') {
-                    setVotes({});
-                    setProposal(null);
-                }
+                setGameState(prev => {
+                    // Si el turno ha avanzado, limpiar votos y propuestas inmediatamente
+                    if (!prev || e.turnNumber !== prev.turnNumber || e.state === 'challenge') {
+                        setVotes({});
+                        setProposal(null);
+                    }
+                    return e;
+                });
             })
             .listen('ChatMessageReceived', (e) => {
                 setChatMessages(prev => [...prev, {

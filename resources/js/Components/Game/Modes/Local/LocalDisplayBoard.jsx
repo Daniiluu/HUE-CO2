@@ -20,7 +20,8 @@ export default function LocalDisplayBoard({
     turnNumber = 1, 
     onNextChallenge,
     myParticipantId,
-    myPlayerName
+    myPlayerName,
+    visualPhase: propVisualPhase
 }) {
     // 1. Hooks de estado y contexto
     const { timeLeft, setTimeLeft, intensity, setIntensity } = useGame();
@@ -30,7 +31,7 @@ export default function LocalDisplayBoard({
 
     // 2. Variables derivadas (Calculadas en cada render)
     const isLocalGame = roomCode && roomCode.startsWith('LOCAL_');
-    const currentGameState = remoteState?.state || 'challenge'; // 'challenge' | 'results' | 'ended'
+    const currentGameState = remoteState?.state || 'waiting'; // Por defecto esperar hasta tener estado real
     
     const displaySectors = sectors.map((s) => ({
         ...s,
@@ -82,24 +83,47 @@ export default function LocalDisplayBoard({
         setLocalFeedback(null);
     }, [activeChallenge?.id, activeChallenge?.title]);
 
-    // Mostrar feedback inmediato cuando el mando envía un voto y el backend transiciona a 'results'
-    // remoteState.lastTurnCorrect viene del evento GameStateChanged (Reverb) o del polling
+    // Efecto 1: Reaccionar inmediatamente a los votos entrantes (PlayerVoted)
+    // Esto hace que el feedback sea "instantáneo" como en el modo online, sin esperar al GameStateChanged final.
+    useEffect(() => {
+        // Solo evaluar votos si estamos en fase de juego/reto y no tenemos feedback aún
+        if (!activeChallenge || localFeedback !== null) return;
+        if (currentGameState !== 'challenge' && currentGameState !== 'playing') return;
+
+        if (isFreeQuestion && freePhase === 'evaluating') {
+            // Si es pregunta abierta y alguien ha validado (valid, partial, invalid)
+            const validationVote = Object.values(votes).find(v => ['valid', 'partial', 'invalid'].includes(v));
+            if (validationVote) {
+                const isCorrect = (validationVote === 'valid');
+                setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
+                setFreePhase(null);
+            }
+        } else if (activeChallenge.type === 'options' || activeChallenge.type === 'slider') {
+            // Si es pregunta normal y el sector activo ha votado
+            const activeVote = votes[activeSectorId];
+            if (activeVote) {
+                let isCorrect = false;
+                if (activeChallenge.type === 'options' && activeChallenge.options) {
+                    const correctOption = activeChallenge.correct_answer || activeChallenge.options[0];
+                    isCorrect = (activeVote === correctOption);
+                } else if (activeChallenge.type === 'slider') {
+                    const diff = Math.abs(Number(activeVote) - Number(activeChallenge.correct_answer || 50));
+                    isCorrect = (diff <= 5); // Margen de error (igual que en backend)
+                }
+                setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
+            }
+        }
+    }, [votes, activeChallenge, localFeedback, isFreeQuestion, freePhase, activeSectorId, currentGameState]);
+
+    // Efecto 2: Fallback por si nos perdemos el voto pero llega el cambio de estado a 'results'
+    // NO hay auto-avance: el host debe pulsar "Siguiente Pregunta" manualmente.
     useEffect(() => {
         if (currentGameState === 'results' && localFeedback === null) {
             const isCorrect = remoteState?.lastTurnCorrect ?? false;
             setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
+            if (isFreeQuestion) setFreePhase(null);
         }
-    }, [currentGameState, remoteState?.lastTurnCorrect]);
-
-    // Auto-avance automático cuando estamos en modo resultados
-    useEffect(() => {
-        if (currentGameState === 'results' && !advancingRef.current) {
-            const timer = setTimeout(() => {
-                handleAdvance();
-            }, 4000); // Esperar 4 segundos viendo los resultados antes de saltar al siguiente reto
-            return () => clearTimeout(timer);
-        }
-    }, [currentGameState]);
+    }, [currentGameState, remoteState?.lastTurnCorrect, localFeedback, isFreeQuestion]);
 
     const handleAdvance = async () => {
         // Evitar doble llamada al backend
@@ -135,31 +159,25 @@ export default function LocalDisplayBoard({
                 return;
             }
             // Fase 2: el grupo ha votado (answer = 'valid' | 'partial' | 'invalid')
+            // Mostramos el feedback y esperamos a que el host pulse "Siguiente Pregunta"
             const isCorrect = (answer === 'valid');
             setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
             setFreePhase(null);
-            setTimeout(async () => {
-                setLocalFeedback(null);
-                await handleAdvance();
-            }, 2500);
-            return;
+            return; // El avance lo gestiona el botón del FeedbackOverlay
         }
 
-        // Preguntas de opciones
+        // Preguntas de opciones: mostrar feedback y esperar al botón del host
         let isCorrect = true;
         if (activeChallenge.type === 'options' && activeChallenge.options) {
             const correctOption = activeChallenge.correct_answer || activeChallenge.options[0];
             isCorrect = (answer === correctOption);
         }
         setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
-        setTimeout(async () => {
-            setLocalFeedback(null);
-            await handleAdvance();
-        }, 2500);
+        // Sin setTimeout: el host avanza manualmente pulsando el botón en el FeedbackOverlay
     };
 
     // Fase visual actual (Número de anillo del 1 al 5)
-    const visualPhase = remoteState?.challenge?.visual_phase || 1;
+    const visualPhase = propVisualPhase || remoteState?.challenge?.visual_phase || 1;
 
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans p-0 overflow-hidden relative">
@@ -227,110 +245,137 @@ export default function LocalDisplayBoard({
 
                 {/* Carta de Reto */}
                 <div className="flex-none w-[380px]">
-                    {isFreeQuestion && freePhase === null && (
-                        // FASE RESPUESTA: El jugador activo responde en voz alta
-                        <motion.div
-                            key="free-answering"
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-white border-4 border-amber-300 rounded-[2.5rem] p-8 shadow-xl w-[380px]"
-                        >
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-[9px] font-black uppercase text-amber-600 tracking-widest bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-                                    🎤 Pregunta Abierta
-                                </span>
-                            </div>
-                            <h2 className="text-lg font-black mb-3 text-[#1c1917] leading-tight">
-                                {activeChallenge.title}
-                            </h2>
-                            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 text-sm text-amber-800">
-                                <strong>Turno de: {activeSector?.playerName || activeSectorId}</strong>
-                                <p className="mt-1 font-medium">
-                                    {isLocalGame 
-                                        ? "Responde en voz alta. Cuando hayas terminado, pulsa el botón para que tus compañeros evalúen tu respuesta."
-                                        : "El jugador está respondiendo en su dispositivo. Esperando confirmación..."}
-                                </p>
-                            </div>
-                            {isLocalGame && (
-                                <button
-                                    onClick={() => handleApply(null)}
-                                    className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base transition-all active:scale-95 shadow-lg"
+                    {/* Preparar el reto con el número de turno formateado */}
+                    {(() => {
+                        const relativeTurn = ((turnNumber - 1) % 6) + 1;
+                        const challengeWithTurn = {
+                            ...activeChallenge,
+                            turn: `${relativeTurn} / 6`
+                        };
+
+                        if (isFreeQuestion && freePhase === null) {
+                            return (
+                                // FASE RESPUESTA: El jugador activo responde en voz alta
+                                <motion.div
+                                    key="free-answering"
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-white border-4 border-amber-300 rounded-[2.5rem] p-8 shadow-xl w-[380px]"
                                 >
-                                    👍 Ya respondí en voz alta
-                                </button>
-                            )}
-                        </motion.div>
-                    )}
-
-                    {isFreeQuestion && (freePhase === 'evaluating' || (!isLocalGame && activeChallenge.type === 'validate')) && (
-                        // FASE EVALUACIÓN: Los demás votan si la respuesta fue correcta
-                        <motion.div
-                            key="free-evaluating"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="bg-white border-4 border-[#87AF4C] rounded-[2.5rem] p-8 shadow-xl w-[380px]"
-                        >
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-[9px] font-black uppercase text-[#87AF4C] tracking-widest bg-[#f0fdf4] px-3 py-1 rounded-full border border-[#E3EFD2]">
-                                    ⭐ {isLocalGame ? "Evalúa a tu compañero" : "Evaluación en curso"}
-                                </span>
-                            </div>
-                            <h3 className="text-base font-black text-[#1c1917] mb-1">{activeChallenge.title}</h3>
-                            <p className="text-sm text-[#78716c] font-medium mb-5">
-                                {isLocalGame 
-                                    ? `El sector ${activeSector?.playerName || activeSectorId} ha respondido. ¿Cuál es el veredicto del equipo?`
-                                    : `El grupo está evaluando la propuesta de ${activeSector?.playerName || activeSectorId}...`}
-                            </p>
-                            
-                            {isLocalGame ? (
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => handleApply('valid')}
-                                        className="w-full py-3 border-[3px] border-emerald-400 bg-emerald-50 text-emerald-800 rounded-2xl font-black text-sm hover:bg-emerald-100 active:scale-95 transition-all"
-                                    >
-                                        ✅ Totalmente correcta
-                                    </button>
-                                    <button
-                                        onClick={() => handleApply('partial')}
-                                        className="w-full py-3 border-[3px] border-amber-400 bg-amber-50 text-amber-800 rounded-2xl font-black text-sm hover:bg-amber-100 active:scale-95 transition-all"
-                                    >
-                                        ⚠️ Incompleta (parcial)
-                                    </button>
-                                    <button
-                                        onClick={() => handleApply('invalid')}
-                                        className="w-full py-3 border-[3px] border-rose-400 bg-rose-50 text-rose-800 rounded-2xl font-black text-sm hover:bg-rose-100 active:scale-95 transition-all"
-                                    >
-                                        ❌ Incorrecta
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-center">
-                                    <div className="flex items-center justify-center gap-2 text-[#87AF4C] font-black text-sm">
-                                        <div className="w-2 h-2 rounded-full bg-[#87AF4C] animate-ping" />
-                                        Esperando votos del grupo...
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-[9px] font-black uppercase text-amber-600 tracking-widest bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                                            🎤 Pregunta Abierta
+                                        </span>
+                                        <div className="px-2.5 py-1 bg-neutral-100 rounded-md border border-stone-200">
+                                            <span className="text-stone-500 text-[9px] font-bold uppercase tracking-widest">
+                                                Turno {challengeWithTurn.turn}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="mt-4 flex justify-center gap-1">
-                                        {sectors.filter(s => s.id !== activeSectorId).map(s => (
-                                            <div 
-                                                key={`vote-dot-${s.id}`}
-                                                className={`w-3 h-3 rounded-full border-2 ${votes[s.id] ? 'bg-[#87AF4C] border-[#87AF4C]' : 'bg-transparent border-slate-300'}`}
-                                            />
-                                        ))}
+                                    <h2 className="text-lg font-black mb-3 text-[#1c1917] leading-tight">
+                                        {activeChallenge.title}
+                                    </h2>
+                                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 text-sm text-amber-800">
+                                        <strong>Turno de: {activeSector?.playerName || activeSectorId}</strong>
+                                        <p className="mt-1 font-medium">
+                                            {isLocalGame 
+                                                ? "Responde en voz alta. Cuando hayas terminado, pulsa el botón para que tus compañeros evalúen tu respuesta."
+                                                : "El jugador está respondiendo en su dispositivo. Esperando confirmación..."}
+                                        </p>
                                     </div>
-                                </div>
-                            )}
-                        </motion.div>
-                    )}
+                                    {isLocalGame && (
+                                        <button
+                                            onClick={() => handleApply(null)}
+                                            className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-base transition-all active:scale-95 shadow-lg"
+                                        >
+                                            👍 Ya respondí en voz alta
+                                        </button>
+                                    )}
+                                </motion.div>
+                            );
+                        }
 
-                    {!isFreeQuestion && (
-                        <ChallengeCard
-                            challenge={activeChallenge}
-                            intensity={intensity}
-                            setIntensity={setIntensity}
-                            onApply={handleApply}
-                            readOnly={!isLocalGame || localFeedback !== null}
-                        />
-                    )}
+                        if (isFreeQuestion && (freePhase === 'evaluating' || (!isLocalGame && activeChallenge.type === 'validate'))) {
+                            return (
+                                // FASE EVALUACIÓN: Los demás votan si la respuesta fue correcta
+                                <motion.div
+                                    key="free-evaluating"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="bg-white border-4 border-[#87AF4C] rounded-[2.5rem] p-8 shadow-xl w-[380px]"
+                                >
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-[9px] font-black uppercase text-[#87AF4C] tracking-widest bg-[#f0fdf4] px-3 py-1 rounded-full border border-[#E3EFD2]">
+                                            ⭐ {isLocalGame ? "Evalúa a tu compañero" : "Evaluación en curso"}
+                                        </span>
+                                        <div className="px-2.5 py-1 bg-neutral-100 rounded-md border border-stone-200">
+                                            <span className="text-stone-500 text-[9px] font-bold uppercase tracking-widest">
+                                                Turno {challengeWithTurn.turn}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-base font-black text-[#1c1917] mb-1">{activeChallenge.title}</h3>
+                                    <p className="text-sm text-[#78716c] font-medium mb-5">
+                                        {isLocalGame 
+                                            ? `El sector ${activeSector?.playerName || activeSectorId} ha respondido. ¿Cuál es el veredicto del equipo?`
+                                            : `El grupo está evaluando la propuesta de ${activeSector?.playerName || activeSectorId}...`}
+                                    </p>
+                                    
+                                    {isLocalGame ? (
+                                        <div className="space-y-3">
+                                            <button
+                                                onClick={() => handleApply('valid')}
+                                                className="w-full py-3 border-[3px] border-emerald-400 bg-emerald-50 text-emerald-800 rounded-2xl font-black text-sm hover:bg-emerald-100 active:scale-95 transition-all"
+                                            >
+                                                ✅ Totalmente correcta
+                                            </button>
+                                            <button
+                                                onClick={() => handleApply('partial')}
+                                                className="w-full py-3 border-[3px] border-amber-400 bg-amber-50 text-amber-800 rounded-2xl font-black text-sm hover:bg-amber-100 active:scale-95 transition-all"
+                                            >
+                                                ⚠️ Incompleta (parcial)
+                                            </button>
+                                            <button
+                                                onClick={() => handleApply('invalid')}
+                                                className="w-full py-3 border-[3px] border-rose-400 bg-rose-50 text-rose-800 rounded-2xl font-black text-sm hover:bg-rose-100 active:scale-95 transition-all"
+                                            >
+                                                ❌ Incorrecta
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-center">
+                                            <div className="flex items-center justify-center gap-2 text-[#87AF4C] font-black text-sm">
+                                                <div className="w-2 h-2 rounded-full bg-[#87AF4C] animate-ping" />
+                                                Esperando votos del grupo...
+                                            </div>
+                                            <div className="mt-4 flex justify-center gap-1">
+                                                {sectors.filter(s => s.id !== activeSectorId).map(s => (
+                                                    <div 
+                                                        key={`vote-dot-${s.id}`}
+                                                        className={`w-3 h-3 rounded-full border-2 ${votes[s.id] ? 'bg-[#87AF4C] border-[#87AF4C]' : 'bg-transparent border-slate-300'}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </motion.div>
+                            );
+                        }
+
+                        if (!isFreeQuestion) {
+                            return (
+                                <ChallengeCard
+                                    challenge={challengeWithTurn}
+                                    intensity={intensity}
+                                    setIntensity={setIntensity}
+                                    onApply={handleApply}
+                                    readOnly={!isLocalGame || localFeedback !== null}
+                                />
+                            );
+                        }
+
+                        return null;
+                    })()}
                 </div>
             </main>
 
@@ -353,11 +398,15 @@ export default function LocalDisplayBoard({
                 </div>
             </footer>
 
-            {/* OVERLAY DE RESULTADO DE TURNO (Solo feedback temporal) */}
+            {/* OVERLAY DE RESULTADO DE TURNO — Con botón manual para avanzar */}
             <AnimatePresence>
                 {localFeedback !== null && (
                     <FeedbackOverlay 
-                        isCorrect={localFeedback === 'correct'} 
+                        isCorrect={localFeedback === 'correct'}
+                        onNext={async () => {
+                            setLocalFeedback(null);
+                            await handleAdvance();
+                        }}
                     />
                 )}
             </AnimatePresence>

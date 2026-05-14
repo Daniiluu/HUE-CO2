@@ -63,15 +63,12 @@ export function GameBoard({
         setIsLoadingChallenge(true);
         let response = null;
         try {
-            if (isLocalGame) {
-                // Modo local: cargar pregunta aleatoria directamente de la API
-                response = await axios.get('/api/preguntas/random');
-                setCurrentChallenge(response.data);
-                setTurnNumber(prev => prev + 1);
-            } else {
+            // Si hay roomCode y NO empieza por LOCAL_ manual, usamos el backend para sincronizar móviles
+            // (Incluso en modo isLocalGame, si hay un PIN de sala, necesitamos que el servidor gestione el estado)
+            if (roomCode && !roomCode.startsWith('LOCAL_')) {
                 const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
                 response = await axios.post(`/api/game/${cleanCode}/advance`);
-                // Si la respuesta incluye el gameState, actualizamos directamente por si fallan los WebSockets
+                
                 if (response.data && response.data.gameState) {
                     const { state, challenge, turnNumber: newTurn, sectors: newSectors, outcome, temperature } = response.data.gameState;
                     if (state === 'challenge' || state === 'playing' || state === 'results') {
@@ -83,14 +80,19 @@ export function GameBoard({
                         const finalData = {
                             outcome: outcome || 'neutral',
                             temperature: temperature,
-                            totalHeating: serverGameState?.totalHeating ?? 0,
-                            totalReduction: serverGameState?.totalReduction ?? 0,
+                            totalHeating: response.data.gameState.totalHeating ?? 0,
+                            totalReduction: response.data.gameState.totalReduction ?? 0,
                             sectors: newSectors
                         };
                         setEndData(finalData);
                         onEnd?.(finalData);
                     }
                 }
+            } else {
+                // Modo local puro (sin servidor/sala): cargar pregunta aleatoria directamente
+                response = await axios.get('/api/preguntas/random');
+                setCurrentChallenge(response.data);
+                setTurnNumber(prev => prev + 1);
             }
             return response;
         } catch (error) {
@@ -99,11 +101,14 @@ export function GameBoard({
         } finally {
             setIsLoadingChallenge(false);
         }
-    }, [roomCode, isLocalGame]);
+    }, [roomCode, isLocalGame, onEnd]);
 
-    // Al montar, si no hay reto, pedimos al servidor que inicie el primero (SOLO MODO LOCAL)
+    // Al montar, si no hay reto, pedimos al servidor que inicie el primero
+    // IMPORTANTE: Solo hacemos esto si es una partida LOCAL PURA (sin código de sala).
+    // Si hay código de sala, el inicio lo gestiona el GuestPortal/Lobby para evitar dobles arranques.
     useEffect(() => {
-        if (roomCode && isLocalGame && (!currentChallenge || Object.keys(currentChallenge).length === 0)) {
+        const isPureLocal = !roomCode || roomCode.startsWith('LOCAL_');
+        if (isPureLocal && isLocalGame && (!currentChallenge || Object.keys(currentChallenge).length === 0)) {
             nextChallenge();
         }
     }, [roomCode, isLocalGame]);

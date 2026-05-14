@@ -324,24 +324,7 @@ class GameFlowService
                 $mensaje = '¡Tiempo agotado! -2 EcoFichas';
                 $esCorrecto = false; // Aseguramos que se cuente como fallo para subir temperatura
             } elseif ($pregunta) {
-                if ($pregunta->tipo_pregunta === 'free') {
-                    // Procesamos el veredicto del grupo (validadores)
-                    $resultado = trim((string) $voto->resultado);
-                    if ($resultado === 'valid') {
-                        $esCorrecto  = true;
-                        $tokensGanados = $carta->puntos ?: 2;
-                        $puntosGanados = 1;
-                        $mensaje = "¡Respuesta Correcta! +{$tokensGanados} ET";
-                    } elseif ($resultado === 'partial') {
-                        $isPartial = true;
-                        $tokensGanados = (int)ceil(($carta->puntos ?: 2) / 2);
-                        $puntosGanados = 1;
-                        $mensaje = "Respuesta Parcial. +{$tokensGanados} ET";
-                    } else {
-                        $penalizacion = $carta->penalizacion > 0 ? $carta->penalizacion : 1;
-                        $mensaje = "Respuesta Incorrecta. -{$penalizacion} ET";
-                    }
-                } elseif ($pregunta->tipo_pregunta === 'validate') {
+                if (in_array($pregunta->tipo_pregunta, ['free', 'validate'])) {
                     // Lógica de Consenso: votos de los DEMÁS participantes
                     $votosConsenso = Turno::where([
                         'juego_id' => $juego->juego_id,
@@ -350,7 +333,7 @@ class GameFlowService
 
                     if ($votosConsenso->isEmpty()) {
                         $penalizacion = 1;
-                        $mensaje = 'Nadie ha votado la propuesta.';
+                        $mensaje = 'Nadie ha evaluado la respuesta.';
                     } else {
                         $puntosTotales = 0;
                         foreach ($votosConsenso as $v) {
@@ -370,7 +353,7 @@ class GameFlowService
                                 : "Aprobado parcial. +{$tokensGanados} ET";
                         } else {
                             $penalizacion = $carta->penalizacion > 0 ? $carta->penalizacion : 1;
-                            $mensaje = 'Propuesta rechazada por el grupo.';
+                            $mensaje = 'Respuesta rechazada por el grupo.';
                         }
                     }
                 } elseif ($pregunta->tipo_pregunta === 'slider') {
@@ -483,6 +466,7 @@ class GameFlowService
         // Elegir una carta del anillo que no se haya jugado y que sea de tipo 'pregunta'
         $carta = Carta::where('anillo_id', $anilloId)
             ->where('tipo', 'pregunta')
+            ->whereHas('preguntas')
             ->whereNotIn('carta_id', $cartasJugadas)
             ->inRandomOrder()
             ->first();
@@ -491,6 +475,7 @@ class GameFlowService
         if (!$carta) {
             $carta = Carta::where('anillo_id', $anilloId)
                 ->where('tipo', 'pregunta')
+                ->whereHas('preguntas')
                 ->inRandomOrder()
                 ->first();
         }

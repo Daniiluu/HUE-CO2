@@ -131,8 +131,13 @@ export default function OrbitalBoard({ sectors, activeSectorId = null, visualPha
                     const arcLength = 360 / totalSectors;
                     const angle = (i * arcLength + arcLength / 2) * (Math.PI / 180);
 
-                    // Los iconos se sitúan fuera del último anillo
-                    const radiusPercent = 48; 
+                    // Radio del anillo actual
+                    const currentRingRadius = RING_RADII[Math.min(visualPhase - 1, RING_RADII.length - 1)] || 220;
+                    
+                    // Convertir el radio SVG (sobre 250) a porcentaje CSS (sobre 50)
+                    // Añadimos un pequeño margen (+3) para que queden justo sobre/fuera de la línea
+                    const radiusPercent = (currentRingRadius / 250) * 50 + 2; 
+
                     const x = 50 + radiusPercent * Math.cos(angle);
                     const y = 50 + radiusPercent * Math.sin(angle);
 

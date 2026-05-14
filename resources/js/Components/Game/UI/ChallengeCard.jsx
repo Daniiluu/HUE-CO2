@@ -129,24 +129,29 @@ export default function ChallengeCard({
     const renderOpen = () => (
         <div className="flex flex-col flex-1 h-full pb-2">
             {!readOnly ? (
-                <>
-                    <textarea 
-                        className={`flex-1 w-full bg-white border-2 border-slate-200 rounded-2xl p-4 mt-2 outline-none text-sm font-medium transition-all ${c.focus} resize-none shadow-inner`}
-                        placeholder="Escribe tu propuesta aquí para solucionar la crisis..."
-                        value={proposalText}
-                        onChange={(e) => setProposalText(e.target.value)}
-                    />
+                <div className="flex-1 flex flex-col justify-center items-center">
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-6 text-center text-amber-800 shadow-inner w-full">
+                        <span className="text-3xl mb-4 block">🎤</span>
+                        <h4 className="font-black uppercase tracking-widest text-sm mb-2">Tu turno de hablar</h4>
+                        <p className="font-medium text-sm">
+                            Responde a la pregunta en voz alta frente al grupo. Cuando hayas terminado, pulsa el botón inferior.
+                        </p>
+                    </div>
                     <button 
-                        onClick={() => onApply?.(proposalText)}
-                        className={`mt-4 w-full text-white font-black py-4 rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 ${c.base}`}
+                        onClick={() => onApply?.('oral_response')}
+                        className={`mt-auto w-full text-white font-black py-4 rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 ${c.base}`}
                     >
-                        <Send size={18} /> Enviar al Grupo
+                        <CheckCircle2 size={20} /> Terminé de responder
                     </button>
-                </>
+                </div>
             ) : (
-                <div className="flex-1 mt-4 flex items-center justify-center border-2 border-dashed border-slate-200 bg-white/50 rounded-2xl p-6">
-                    <p className="text-slate-400 font-medium text-center animate-pulse">
-                        Esperando que el responsable redacte una propuesta creativa...
+                <div className="flex-1 mt-4 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-white/50 rounded-2xl p-6 text-center">
+                    <span className="text-3xl mb-4 block animate-bounce">🗣️</span>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[11px] mb-2">
+                        Escucha con atención
+                    </p>
+                    <p className="text-slate-500 font-medium text-sm">
+                        El jugador activo está respondiendo en voz alta...
                     </p>
                 </div>
             )}
@@ -207,8 +212,10 @@ export default function ChallengeCard({
                 <div className={`absolute -top-4 -left-3 bg-white p-1.5 rounded-full border border-slate-200 shadow-sm ${c.text}`}>
                     {ringConfig.icon}
                 </div>
-                <p className="text-slate-700 font-bold italic text-sm leading-relaxed mt-1">
-                    "{challenge.proposal ?? 'El sector propone una medida. Evalúala...'}"
+                <p className="text-slate-700 font-bold italic text-sm leading-relaxed mt-1 text-center">
+                    {challenge.proposal === 'oral_response' 
+                        ? '🗣️ El jugador ha respondido en voz alta. ¿Qué opina el grupo de su respuesta?' 
+                        : `"${challenge.proposal ?? 'El sector propone una medida. Evalúala...'}"`}
                 </p>
             </div>
 
