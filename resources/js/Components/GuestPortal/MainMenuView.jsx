@@ -27,12 +27,6 @@ export function MainMenuView({ onNavigate }) {
                 >
                     <Gamepad2 className="w-6 h-6" /> Unirse con PIN
                 </button>
-                <button 
-                    onClick={() => onNavigate('host_auth')} 
-                    className="w-full bg-[#1c1917] text-white p-6 rounded-[2rem] shadow-[0_8px_0_0_#292524] hover:shadow-[0_4px_0_0_#292524] hover:translate-y-1 active:shadow-none active:translate-y-2 transition-all font-black text-xl flex items-center justify-center gap-3"
-                >
-                    <Sparkles className="w-6 h-6 text-[#fde047]" /> Crear Partida Rápida
-                </button>
             </div>
 
             <button 

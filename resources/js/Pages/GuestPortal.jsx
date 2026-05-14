@@ -46,7 +46,7 @@ class ErrorBoundary extends React.Component {
 
 export default function GuestPortal({ pin = null }) {
     const { auth } = usePage().props;
-    const [view, setView] = useState(pin ? 'join' : 'main');
+    const [view, setView] = useState('join');
     const [mode, setMode] = useState(null);
     const [roomCode, setRoomCode] = useState(pin ? pin.toString() : null);
     const [selectedPlayers, setSelectedPlayers] = useState(null);
@@ -288,7 +288,7 @@ export default function GuestPortal({ pin = null }) {
                 {view === 'join' && (
                     <JoinView 
                         key="join"
-                        onBack={() => navigateTo('main')}
+                        onBack={() => router.get('/')}
                         onConnect={handleConnect}
                         initialPin={roomCode}
                     />

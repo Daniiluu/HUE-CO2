@@ -43,9 +43,9 @@ Route::get('/juego-local', function () {
 })->name('game.local');
 
 // Rutas DE JUEGO (Creación permitida para invitados)
-Route::post('/juego/crear', [App\Http\Controllers\Api\JuegoController::class, 'store'])->name('juego.crear');
 
 Route::middleware(['auth'])->group(function () {
+    Route::post('/juego/crear', [App\Http\Controllers\Api\JuegoController::class, 'store'])->name('juego.crear');
     Route::put('/juego/{id}', [App\Http\Controllers\Api\JuegoController::class, 'update'])->name('juego.update');
 });
 
