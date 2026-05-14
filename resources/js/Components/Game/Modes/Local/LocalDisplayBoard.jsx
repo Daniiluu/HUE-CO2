@@ -82,6 +82,15 @@ export default function LocalDisplayBoard({
         setLocalFeedback(null);
     }, [activeChallenge?.id, activeChallenge?.title]);
 
+    // Mostrar feedback inmediato cuando el mando envía un voto y el backend transiciona a 'results'
+    // remoteState.lastTurnCorrect viene del evento GameStateChanged (Reverb) o del polling
+    useEffect(() => {
+        if (currentGameState === 'results' && localFeedback === null) {
+            const isCorrect = remoteState?.lastTurnCorrect ?? false;
+            setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
+        }
+    }, [currentGameState, remoteState?.lastTurnCorrect]);
+
     // Auto-avance automático cuando estamos en modo resultados
     useEffect(() => {
         if (currentGameState === 'results' && !advancingRef.current) {
@@ -330,8 +339,8 @@ export default function LocalDisplayBoard({
             <footer className="bg-white border-t border-slate-200 p-4 relative h-[160px]">
                 <div className="max-w-[1700px] mx-auto flex items-center h-full gap-6">
                     
-                    {/* SECTORES (Izquierda) */}
-                    <div className="flex gap-3 flex-1 overflow-x-auto scrollbar-hide">
+                    {/* SECTORES (Grid de 6 columnas - Sin Scroll) */}
+                    <div className="grid grid-cols-6 gap-3 w-full h-full py-2">
                         {displaySectors.map((sector, idx) => (
                             <SectorMiniCard 
                                 key={sector.id} 
@@ -340,42 +349,6 @@ export default function LocalDisplayBoard({
                                 isActive={sector.id === activeSectorId}
                             />
                         ))}
-                    </div>
-
-                    {/* DIVISOR VISUAL */}
-                    <div className="w-px h-16 bg-slate-200 shrink-0" />
-
-                    {/* PANEL DE HABILIDADES (Derecha - Sustituye al Chat del Online) */}
-                    <div className="w-[600px] h-full py-2 flex flex-col gap-2">
-                        <div className="flex items-center gap-2 px-1">
-                            <Sparkles className="w-3 h-3 text-amber-500" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Manual de Habilidades de Sectores
-                            </span>
-                        </div>
-                        <div className="flex gap-3 h-full overflow-x-auto scrollbar-hide pb-1">
-                            {ROLES.map((role) => (
-                                <div key={`ability-card-${role.id}`} className="flex-none w-[180px] bg-slate-50 rounded-2xl p-2.5 border border-slate-100 shadow-sm flex flex-col gap-1.5 overflow-hidden group hover:bg-white hover:border-amber-200 transition-all">
-                                    <div className="flex justify-between items-start">
-                                        <span className="text-[10px] font-black uppercase text-slate-800 truncate mr-1 group-hover:text-amber-600 transition-colors">
-                                            {role.activeDesc.split(':')[0]}
-                                        </span>
-                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md text-[8px] font-black shrink-0">
-                                            <Zap className="w-2 h-2" /> {role.activeCost}
-                                        </div>
-                                    </div>
-                                    <p className="text-[9px] text-slate-500 leading-tight line-clamp-2 font-medium">
-                                        {role.activeDesc.split(':')[1] || role.activeDesc}
-                                    </p>
-                                    <div className="mt-auto pt-1.5 border-t border-slate-200/60 flex items-center gap-1.5">
-                                        <Info className="w-2.5 h-2.5 text-slate-300 shrink-0" />
-                                        <p className="text-[8px] text-slate-400 italic truncate font-medium">
-                                            {role.passiveDesc}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 </div>
             </footer>

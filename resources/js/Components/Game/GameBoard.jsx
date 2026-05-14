@@ -60,15 +60,16 @@ export function GameBoard({
     // ── Carga de retos desde el servidor (avanzar turno) ─────────────────────
     const nextChallenge = useCallback(async () => {
         setIsLoadingChallenge(true);
+        let response = null;
         try {
             if (isLocalGame) {
                 // Modo local: cargar pregunta aleatoria directamente de la API
-                const response = await axios.get('/api/preguntas/random');
+                response = await axios.get('/api/preguntas/random');
                 setCurrentChallenge(response.data);
                 setTurnNumber(prev => prev + 1);
             } else {
                 const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
-                const response = await axios.post(`/api/game/${cleanCode}/advance`);
+                response = await axios.post(`/api/game/${cleanCode}/advance`);
                 // Si la respuesta incluye el gameState, actualizamos directamente por si fallan los WebSockets
                 if (response.data && response.data.gameState) {
                     const { state, challenge, turnNumber: newTurn, sectors: newSectors, outcome, temperature } = response.data.gameState;
@@ -81,8 +82,8 @@ export function GameBoard({
                         const finalData = {
                             outcome: outcome || 'neutral',
                             temperature: temperature,
-                            totalHeating: serverGameState.totalHeating, // Use the state from event/polling
-                            totalReduction: serverGameState.totalReduction,
+                            totalHeating: serverGameState?.totalHeating ?? 0,
+                            totalReduction: serverGameState?.totalReduction ?? 0,
                             sectors: newSectors
                         };
                         setEndData(finalData);
