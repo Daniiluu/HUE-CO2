@@ -21,6 +21,7 @@ export default function Dashboard() {
     const [juegoId, setJuegoId] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
     const [isLocal, setIsLocal] = useState(false);
+    const [myParticipantId, setMyParticipantId] = useState(null);
 
     const navigateTo = (newView) => {
         setView(newView);
@@ -45,6 +46,9 @@ export default function Dashboard() {
             if (response.data?.juego?.room_code) {
                 setRoomCode(response.data.juego.room_code);
                 setJuegoId(response.data.juego.juego_id);
+                if (response.data.participante) {
+                    setMyParticipantId(response.data.participante.participante_id);
+                }
                 setView('lobby');
             } else {
                 throw new Error('No se recibió el código de sala');

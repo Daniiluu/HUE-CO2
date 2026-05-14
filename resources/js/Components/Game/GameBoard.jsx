@@ -24,6 +24,7 @@ export function GameBoard({
     const [currentChallenge, setCurrentChallenge] = useState({});
     const [turnNumber, setTurnNumber] = useState(0);
     const [isLoadingChallenge, setIsLoadingChallenge] = useState(false);
+    const [initialTimeLeft, setInitialTimeLeft] = useState(30);
     const [endData, setEndData] = useState(null);
 
     // ── WebSocket: Escuchar el estado global del juego ────────────────────────
@@ -117,6 +118,7 @@ export function GameBoard({
                 if (data.sectors) setSectorsState(data.sectors);
                 if (data.challenge) setCurrentChallenge(data.challenge);
                 if (data.turnNumber) setTurnNumber(data.turnNumber);
+                if (data.timeLeft !== undefined) setInitialTimeLeft(data.timeLeft);
                 if (data.state === 'ended') {
                     setEndData({
                         outcome: data.outcome || 'neutral',
@@ -151,6 +153,7 @@ export function GameBoard({
             ...getRoleColors(role.id),
             tokens: serverData ? serverData.tokens : 12,
             playerName: serverData ? serverData.playerName : 'Esperando...',
+            participanteId: serverData ? serverData.participanteId : null,
             hasVoted: !!votes[role.id],
             points: serverData ? serverData.points : 0,
             ringResults: serverData ? serverData.ringResults : []
@@ -207,6 +210,7 @@ export function GameBoard({
                     myPlayerName={myPlayerName} 
                     turnNumber={serverGameState?.turnNumber || parentTurnNumber}
                     visualPhase={serverGameState?.challenge?.visual_phase || visualPhase}
+                    initialTimeLeft={initialTimeLeft}
                 />
             );
         }

@@ -201,12 +201,14 @@ class GameController extends Controller
             ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
+            ->select('participantes.usuario', 'juego_participante.participante_id', 'roles.slug', 'juego_participante.eco_fichas', 'juego_participante.puntuacion')
             ->get()
             ->map(fn($row) => [
                 'id'         => $row->slug ?: 'ciudadania',
                 'tokens'     => $row->eco_fichas,
                 'points'     => $row->puntuacion ?? 0,
                 'playerName' => $row->usuario,
+                'participanteId' => (int) $row->participante_id,
             ]);
 
         return response()->json([
@@ -302,18 +304,30 @@ class GameController extends Controller
             ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
+            ->select('participantes.usuario', 'juego_participante.participante_id', 'roles.slug', 'juego_participante.eco_fichas', 'juego_participante.puntuacion')
             ->get()
             ->map(fn($row) => [
                 'id'         => $row->slug ?: 'ciudadania',
                 'tokens'     => $row->eco_fichas,
                 'points'     => $row->puntuacion ?? 0,
                 'playerName' => $row->usuario,
+                'participanteId' => (int) $row->participante_id,
             ]);
+
+        // Calcular tiempo restante para sincronización de late-joiners
+        $timeLeft = 30;
+        if ($juego->estado === 'playing' && $juego->last_turn_at) {
+            $challengeData = $this->getChallengeData($juego);
+            $totalDuration = $challengeData['time'] ?? 30;
+            $elapsed = now()->diffInSeconds($juego->last_turn_at);
+            $timeLeft = (int) max(0, $totalDuration - $elapsed);
+        }
 
         return response()->json([
             'state'       => $juego->estado === 'playing' ? 'challenge' : $juego->estado,
             'challenge'   => $this->getChallengeData($juego),
             'sectors'     => $sectors,
+            'timeLeft'    => $timeLeft,
             'temperature' => $juego->temperatura,
             'totalHeating' => $juego->total_calentamiento,
             'totalReduction' => $juego->total_reduccion,

@@ -20,8 +20,23 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                 const res = await axios.get(`/api/juego/${safeRoomCode}/estado`);
                 console.log('[HUE-CO2] Estado inicial recibido:', res.data);
                 if (res.data && res.data.sectors) {
-                    const players = res.data.sectors.map(s => s.playerName);
-                    setConnectedPlayers([...new Set(players)]);
+                    // Mapear a objetos {name, id} usando participantId
+                    const players = res.data.sectors.map(s => ({
+                        name: s.playerName,
+                        id: s.participanteId
+                    }));
+                    // Filtrar duplicados por ID
+                    const uniquePlayers = [];
+                    const seenKeys = new Set();
+                    players.forEach((p, idx) => {
+                        // Usamos el ID si existe, si no, usamos el índice como clave única temporal
+                        const key = p.id ? `id_${p.id}` : `idx_${idx}`;
+                        if (!seenKeys.has(key)) {
+                            seenKeys.add(key);
+                            uniquePlayers.push(p);
+                        }
+                    });
+                    setConnectedPlayers(uniquePlayers);
                 }
             } catch (e) {
                 console.error('[HUE-CO2] Error fetching players:', e);
@@ -45,8 +60,14 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
         channel.listen('.player.joined', (e) => {
             console.log('[HUE-CO2] Evento PlayerJoined recibido vía WS:', e);
             setConnectedPlayers(prev => {
-                if (prev.includes(e.playerName)) return prev;
-                return [...prev, e.playerName];
+                // Si el evento trae ID, verificamos duplicados por ID
+                if (e.participanteId) {
+                    if (prev.some(p => p.id === e.participanteId)) return prev;
+                } else {
+                    // Si no trae ID, verificamos por nombre como último recurso
+                    if (prev.some(p => p.name === e.playerName)) return prev;
+                }
+                return [...prev, { name: e.playerName, id: e.participanteId }];
             });
         });
 
@@ -112,8 +133,8 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                     </div>
                     {connectedPlayers.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-3 justify-center">
-                            {connectedPlayers.map((name, i) => (
-                                <span key={i} className="bg-stone-200 text-stone-700 px-3 py-1 rounded-full text-xs font-bold">{name}</span>
+                            {connectedPlayers.map((player, i) => (
+                                <span key={player.id || i} className="bg-stone-200 text-stone-700 px-3 py-1 rounded-full text-xs font-bold">{player.name}</span>
                             ))}
                         </div>
                     )}
@@ -198,15 +219,15 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                             {/* Lista de nombres conectados */}
                             <div className="flex flex-wrap gap-2 mt-4 justify-center">
                                 {connectedPlayers.length > 0 ? (
-                                    connectedPlayers.map((name, i) => (
+                                    connectedPlayers.map((player, i) => (
                                         <motion.span 
                                             initial={{ scale: 0.8, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
-                                            key={i} 
+                                            key={player.id || i} 
                                             className="bg-white border-2 border-stone-100 text-stone-600 px-4 py-2 rounded-2xl text-xs font-black shadow-sm flex items-center gap-2"
                                         >
                                             <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                                            {name} {i === 0 && <span className="text-[9px] text-stone-400 font-bold ml-1">(HOST)</span>}
+                                            {player.name} {i === 0 && <span className="text-[9px] text-stone-400 font-bold ml-1">(HOST)</span>}
                                         </motion.span>
                                     ))
                                 ) : (

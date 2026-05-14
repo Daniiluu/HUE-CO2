@@ -220,6 +220,7 @@ class GameFlowService
             ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
+            ->select('participantes.usuario', 'juego_participante.participante_id', 'roles.slug', 'juego_participante.eco_fichas', 'juego_participante.puntuacion')
             ->get()
             ->map(function ($row) use ($juego) {
                 // Calcular qué anillos ha completado este participante
@@ -238,6 +239,7 @@ class GameFlowService
                 return [
                     'id' => $row->slug ?: 'ciudadania',
                     'playerName' => $row->usuario,
+                    'participanteId' => (int) $row->participante_id,
                     'tokens' => $row->eco_fichas,
                     'points' => $row->puntuacion,
                     'ringResults' => $ringResults,

@@ -6,8 +6,17 @@ import axios from 'axios';
 /**
  * Hook para centralizar la lógica de estado y sincronización multijugador
  */
-export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sectors, myParticipantId) {
+export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sectors, myParticipantId, initialTimeLeft = 30) {
     const { setTimeLeft, setIsPaused } = useGame();
+    
+    // Sincronizar tiempo inicial al montar (para late-joiners)
+    useEffect(() => {
+        if (initialTimeLeft !== undefined) {
+            console.log("[HUE-CO2] Sincronizando tiempo inicial:", initialTimeLeft);
+            setTimeLeft(initialTimeLeft);
+        }
+    }, []);
+
     console.log("[HUE-CO2] Hook cargado. setTimeLeft disponible:", typeof setTimeLeft === 'function');
     
     const cleanRoomCode = (roomCode || '').toString().replace(/\s/g, '');
@@ -30,20 +39,31 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     [sectors, currentChallenge?.activeSectorId]);
 
     const activePlayerNameRaw = activeSectorInChallenge?.playerName || '';
+    const activeParticipanteId = activeSectorInChallenge?.participanteId;
     
-    const isMyTurn = useMemo(() => (
-        normalize(activePlayerNameRaw) === normalize(myPlayerName) ||
-        (normalize(myPlayerName) === 'anfitrion' && normalize(activePlayerNameRaw) === 'anfitrion')
-    ), [activePlayerNameRaw, myPlayerName]);
+    const isMyTurn = useMemo(() => {
+        // En modo online puro, comparamos IDs numéricos
+        if (activeParticipanteId && myParticipantId) {
+            return Number(activeParticipanteId) === Number(myParticipantId);
+        }
+        // Fallback por nombre (para anfitrión o casos legacy)
+        return (
+            normalize(activePlayerNameRaw) === normalize(myPlayerName) ||
+            (normalize(myPlayerName) === 'anfitrion' && normalize(activePlayerNameRaw) === 'anfitrion')
+        );
+    }, [activeParticipanteId, myParticipantId, activePlayerNameRaw, myPlayerName]);
 
     const myAssignedRoles = useMemo(() => {
         if (!sectors || sectors.length === 0) return [];
         return sectors.filter(s => {
+            if (s.participanteId && myParticipantId) {
+                return Number(s.participanteId) === Number(myParticipantId);
+            }
             const sName = normalize(s.playerName);
             const myName = normalize(myPlayerName);
             return sName === myName || (myName === 'anfitrion' && sName === 'anfitrion');
         });
-    }, [sectors, myPlayerName]);
+    }, [sectors, myParticipantId, myPlayerName]);
 
     const hasVoted = votedChallengeId === currentChallenge?.id;
 

@@ -130,17 +130,16 @@ class JuegoController extends Controller
             return response()->json(['error' => 'Debes proporcionar un nombre de usuario'], 422);
         }
 
-        // Buscar si el usuario ya está en la sala (para permitir reconexión y no ocupar más espacios)
+        // Buscar si el usuario ya está en la sala (para permitir reconexión)
         $existingQuery = $juego->participantes();
         if ($request->user()) {
-            // Si está autenticado, buscamos por user_id o por nombre de usuario
-            $existingQuery->where(function($q) use ($participanteData) {
-                $q->where('participantes.user_id', $participanteData['user_id'])
-                  ->orWhere('participantes.usuario', $participanteData['usuario']);
-            });
+            // Si el cliente está autenticado, buscamos un participante vinculado a su user_id
+            $existingQuery->where('participantes.user_id', $request->user()->id);
         } else {
-            // Si no está autenticado, buscamos por el nombre de usuario que introdujo
-            $existingQuery->where('participantes.usuario', $participanteData['usuario']);
+            // Si es un invitado anónimo, buscamos un participante con ese nombre que TAMBIÉN sea anónimo
+            // Esto evita que un invitado se "apodere" del puesto del anfitrión por llamarse igual
+            $existingQuery->where('participantes.usuario', $participanteData['usuario'])
+                          ->whereNull('participantes.user_id');
         }
         
         $existingParticipante = $existingQuery->first();
