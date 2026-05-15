@@ -18,13 +18,13 @@ class ProposalSubmitted implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public string $roomCode;
-    public string $sectorId;
+    public mixed $sectorId;
     public string $playerName;
     public string $proposalText;
 
     public function __construct(
         string $roomCode,
-        string $sectorId,
+        mixed $sectorId,
         string $playerName,
         string $proposalText
     ) {

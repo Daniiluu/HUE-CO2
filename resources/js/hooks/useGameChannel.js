@@ -39,13 +39,22 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
 
         channelRef.current = window.Echo.channel(channelName)
             .listen('PlayerVoted', (e) => {
-                console.log(`[DEBUG-PERF] Recibido PlayerVoted de ${e.sectorId} (${e.playerName}) a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
-                setVotes(prev => ({ ...prev, [e.sectorId]: e.answer }));
+                console.log(`[DEBUG-PERF] Recibido PlayerVoted de ${Array.isArray(e.sectorId) ? e.sectorId.join(',') : e.sectorId} (${e.playerName}) a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
+                setVotes(prev => {
+                    const newVotes = { ...prev };
+                    if (Array.isArray(e.sectorId)) {
+                        e.sectorId.forEach(id => newVotes[id] = e.answer);
+                    } else {
+                        newVotes[e.sectorId] = e.answer;
+                    }
+                    return newVotes;
+                });
             })
             .listen('ProposalSubmitted', (e) => {
-                console.log(`[DEBUG-PERF] Recibida Propuesta de ${e.sectorId} a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
+                const primarySectorId = Array.isArray(e.sectorId) ? e.sectorId[0] : e.sectorId;
+                console.log(`[DEBUG-PERF] Recibida Propuesta de ${primarySectorId} a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
                 setProposal({
-                    sectorId:    e.sectorId,
+                    sectorId:    primarySectorId,
                     playerName:  e.playerName,
                     text:        e.proposalText,
                 });
@@ -122,11 +131,13 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                     setGameState(prev => {
                         // Solo actualizar si ha cambiado el estado, el reto o el turno
                         // Esto evita que se borre lo que el usuario está escribiendo si el estado es el mismo
-                        if (!prev || 
+                        // Comprobar si los datos críticos han cambiado
+                        const hasChanged = !prev || 
                             prev.state !== res.data.state || 
                             prev.turnNumber !== res.data.turnNumber ||
-                            (prev.challenge?.id !== res.data.challenge?.id)) {
-                            
+                            (prev.challenge?.id !== res.data.challenge?.id);
+
+                        if (hasChanged) {
                             // Si cambió a challenge, limpiar los votos anteriores
                             if (res.data.state === 'challenge' && prev && prev.state !== 'challenge') {
                                 setVotes({});
@@ -146,13 +157,20 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                                 hostId: res.data.hostId || null
                             };
                         }
-                        // Aunque no haya cambiado el estado, siempre actualizar sectors y hostId
-                        // para que isInactive e isActuallyHost sean siempre frescos
-                        return {
-                            ...prev,
-                            sectors: res.data.sectors,
-                            hostId: res.data.hostId || null
-                        };
+
+                        // Si no hay cambios críticos, comparar los sectores (EcoFichas, puntos)
+                        const sectorsChanged = JSON.stringify(prev.sectors) !== JSON.stringify(res.data.sectors);
+                        if (sectorsChanged) {
+                            return {
+                                ...prev,
+                                sectors: res.data.sectors,
+                                hostId: res.data.hostId || null
+                            };
+                        }
+
+                        // Si absolutamente nada ha cambiado, devolver el mismo objeto 'prev'
+                        // Esto evita re-renders innecesarios y ruido en la consola
+                        return prev;
                     });
                 }
             } catch (error) {
@@ -163,11 +181,20 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
         // Hacer un fetch inicial inmediatamente
         fetchState();
 
-        // Luego cada 1 segundo para mayor inmediatez en el tablero
-        const interval = setInterval(fetchState, 1000);
+        // Reducimos la frecuencia de polling de 1s a 5s para evitar saturar el servidor local (Artisan Serve)
+        // especialmente cuando hay múltiples pestañas abiertas simulando jugadores.
+        const interval = setInterval(() => {
+            // Si el WebSocket está conectado, el polling es solo un fallback de seguridad (cada 10s)
+            // Si está desconectado, es nuestra vía principal (cada 5s)
+            const currentInterval = isConnected ? 10000 : 5000;
+            
+            // Usamos un pequeño truco para cambiar el intervalo dinámicamente si fuera necesario,
+            // pero por ahora simplemente reducimos la carga global.
+            fetchState();
+        }, isConnected ? 10000 : 5000);
 
         return () => clearInterval(interval);
-    }, [cleanRoomCode]);
+    }, [cleanRoomCode, isConnected]); // Añadimos isConnected como dependencia para re-evaluar el intervalo
 
     // ── Enviar Voto (MobileController → Backend → Reverb → LocalDisplayBoard) ──
     const sendVote = useCallback(async (answer, type = 'options', sectorIdOverride = null) => {

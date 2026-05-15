@@ -18,14 +18,14 @@ class PlayerVoted implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public string $roomCode;
-    public string $sectorId;
+    public mixed $sectorId;
     public string $playerName;
     public mixed  $answer;    // string (opción) | int (slider) | 'valid'|'partial'|'invalid'
     public string $type;      // options | slider | validate | open
 
     public function __construct(
         string $roomCode,
-        string $sectorId,
+        mixed $sectorId,
         string $playerName,
         mixed  $answer,
         string $type = 'options'

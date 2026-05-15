@@ -21,9 +21,9 @@ class GameFlowService
         if (!in_array($juego->estado, ['playing', 'challenge'])) return;
 
         $startTime = microtime(true);
-        \Log::info("[PERF] Iniciando transitionToResults para juego {$juego->juego_id}");
+        $turnResults = [];
 
-        DB::transaction(function () use ($juego, $startTime) {
+        DB::transaction(function () use ($juego, &$turnResults) {
             $turnResults = $this->processTurnResults($juego);
             
             $acierto = collect($turnResults)->where('correct', true)->count() > 0;
@@ -34,18 +34,17 @@ class GameFlowService
             // Verificación de límite de temperatura (GameOver crítico)
             if ($juego->temperatura >= 1.0) {
                 $juego->estado = 'ended';
-                $juego->save();
-                $this->broadcastState($juego, $turnResults, 'defeat');
-                return;
             }
 
             $juego->save();
-            
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
-            \Log::info("[PERF] Finalizando transición a resultados. Duración: {$duration}ms");
-            
-            $this->broadcastState($juego, $turnResults);
         });
+
+        // IMPORTANTE: El broadcast se hace FUERA de la transacción para evitar bloqueos de DB
+        // mientras se espera a que el servidor de sockets responda.
+        $duration = round((microtime(true) - $startTime) * 1000, 2);
+        \Log::info("[PERF] Transacción completada. Duración: {$duration}ms. Enviando broadcast...");
+        
+        $this->broadcastState($juego, $turnResults, ($juego->estado === 'ended' ? 'defeat' : null));
     }
 
     /**
@@ -56,7 +55,6 @@ class GameFlowService
     public function advanceTurn(Juego $juego)
     {
         // Lock atómico para prevenir doble avance desde peticiones concurrentes
-        // (e.g.: el jugador llama a /advance desde el voto Y el host desde auto-avance)
         $lockKey = "juego_advance_{$juego->juego_id}";
         if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 8)) {
             \Log::info("[HUE-CO2] advanceTurn ya en ejecución para sala {$juego->room_code}, ignorando petición duplicada.");
@@ -64,99 +62,78 @@ class GameFlowService
             return $juego;
         }
 
-        return DB::transaction(function () use ($juego) {
-            // Si el juego ya terminó (por límite de temperatura o turnos), no permitir avanzar
+        $turnResults = [];
+        $outcome = null;
+
+        DB::transaction(function () use ($juego, &$turnResults, &$outcome) {
+            // Si el juego ya terminó, no permitir avanzar
             if ($juego->estado === 'ended') {
-                return $juego;
+                return;
             }
-
-
-            $turnResults = [];
 
             // ── FASE A: Fallback si aún no se procesaron resultados ──────────
             if ($juego->estado === 'playing' || $juego->estado === 'challenge') {
                 $turnResults = $this->processTurnResults($juego);
-
                 $juego->estado = 'results';
 
-                // Verificación de límite de temperatura (GameOver crítico)
                 if ($juego->temperatura >= 1.0) {
                     $juego->estado = 'ended';
-                    $juego->save();
-                    $this->broadcastState($juego, $turnResults, 'defeat');
-                    return $juego;
+                    $outcome = 'defeat';
                 }
-
                 $juego->save();
-
-                $this->broadcastState($juego, $turnResults);
-                return $juego;
+                return;
             }
 
             // ── FASE B: Preparar el Siguiente Reto ───────────────────────────
-            
-            // Inicializar roles si es el primer turno (todos los modos)
             if ($juego->current_turn === 0) {
                 $this->initializeParticipantRoles($juego);
             }
 
             $juego->current_turn += 1;
             
-            // --- ORDEN DE ANILLOS: leer de la BD para no hardcodear IDs ---
+            // --- ORDEN DE ANILLOS ---
             $order = DB::table('anillos')->orderBy('orden')->pluck('anillo_id')->toArray();
             $phaseIndex = (int)floor(($juego->current_turn - 1) / 6);
             
-            \Log::info("[HUE-CO2] Avanzando Turno: {$juego->current_turn} | Fase (anillo): " . ($phaseIndex + 1) . " de " . count($order));
-
             if ($phaseIndex >= count($order)) {
-                \Log::info("[HUE-CO2] Juego finalizado tras " . $juego->current_turn . " turnos.");
                 $juego->estado = 'ended';
-                
-                // Calcular resultado final basado en la temperatura
-                $outcome = 'victory';
-                if ($juego->temperatura >= 1.0) {
-                    $outcome = 'defeat';
-                } elseif ($juego->temperatura >= 0.5) {
-                    $outcome = 'neutral';
-                }
-                
+                $outcome = $this->calculateOutcome($juego);
                 $juego->save();
-                $juego->load('anillo');
-                $this->broadcastState($juego, [], $outcome);
-                return $juego;
+                return;
             }
 
-            $nuevoAnilloId = $order[$phaseIndex];
-            if ($juego->anillo_id !== $nuevoAnilloId) {
-                \Log::info("[HUE-CO2] ¡Cambio de anillo! {$juego->anillo_id} → {$nuevoAnilloId}");
-            }
-            $juego->anillo_id = $nuevoAnilloId;
-            $juego->load('anillo');
-            \Log::info("[HUE-CO2] Anillo activo: {$juego->anillo_id} (" . ($juego->anillo->nombre ?? 'N/A') . ")");
+            $juego->anillo_id = $order[$phaseIndex];
 
             // Rotar al siguiente sector activo
             $this->selectNextActiveSector($juego);
 
-            // Seleccionar nueva carta del anillo CALCULADO, sin repetir cartas previas
+            // Seleccionar nueva carta
             $nuevaCarta = $this->pickRandomCard($juego, $juego->anillo_id);
-            
             if ($nuevaCarta) {
                 $juego->current_carta_id = $nuevaCarta->carta_id;
                 $juego->estado = 'playing';
-                \Log::info("[HUE-CO2] Carta elegida: ID {$juego->current_carta_id} | Título: " . ($nuevaCarta->texto ?? 'S/T'));
             } else {
                 $juego->estado = 'ended';
+                $outcome = $this->calculateOutcome($juego);
             }
 
             $juego->last_turn_at = now();
-            $juego->load('anillo'); // Forzar carga del nuevo nombre del anillo
             $juego->save();
-            $juego->load('anillo');
-            
-            $this->broadcastState($juego);
-
-            return $juego;
         });
+
+        // Broadcast FUERA de la transacción para máxima agilidad
+        $juego->refresh();
+        $juego->load('anillo');
+        $this->broadcastState($juego, $turnResults, $outcome);
+
+        return $juego;
+    }
+
+    private function calculateOutcome(Juego $juego): string
+    {
+        if ($juego->temperatura >= 1.0) return 'defeat';
+        if ($juego->temperatura >= 0.5) return 'neutral';
+        return 'victory';
     }
 
     protected function initializeParticipantRoles(Juego $juego)
@@ -259,6 +236,8 @@ class GameFlowService
      */
     protected function broadcastState(Juego $juego, array $turnResults = [], ?string $outcome = null)
     {
+        $startBroadcast = microtime(true);
+
         $activeRol = DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
         $activeSectorSlug = $activeRol ? $activeRol->slug : null;
 
@@ -320,6 +299,9 @@ class GameFlowService
         } catch (\Exception $e) {
             \Log::warning('[HUE-CO2] Error en broadcast: ' . $e->getMessage());
         }
+
+        $duration = round((microtime(true) - $startBroadcast) * 1000, 2);
+        \Log::info("[PERF] Broadcast completado en {$duration}ms.");
     }
 
     protected function processTurnResults(Juego $juego)
@@ -575,6 +557,9 @@ class GameFlowService
      */
     public function redistributeInactiveRoles(Juego $juego)
     {
+        // En modo local no tiene sentido redistribuir por inactividad
+        if ($juego->is_local) return;
+
         // 1. Identificar participantes inactivos (más de 25 segundos sin señales)
         $threshold = now()->subSeconds(25);
         

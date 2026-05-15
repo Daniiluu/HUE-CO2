@@ -35,7 +35,7 @@ class GameController extends Controller
     public function vote(Request $request, string $roomCode): JsonResponse
     {
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-            'sector_id'   => 'nullable|string',
+            'sector_id'   => 'nullable', // Puede ser string o array
             'player_name' => 'required|string|max:50',
             'answer'      => 'nullable',
             'type'        => 'required|in:options,slider,validate,free,open',
@@ -52,9 +52,10 @@ class GameController extends Controller
 
         $validated = $validator->validated();
         
-        // Fallback for sector_id if missing
-        if (empty($validated['sector_id'])) {
-            $validated['sector_id'] = 'ciudadania';
+        // Manejar sector_id como array
+        $sectorIds = is_array($validated['sector_id']) ? $validated['sector_id'] : [$validated['sector_id']];
+        if (empty($sectorIds) || $sectorIds === [null]) {
+            $sectorIds = ['ciudadania'];
         }
 
         $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
@@ -78,7 +79,7 @@ class GameController extends Controller
             }
         }
 
-        // Guardar el turno/voto en la BD
+        // Guardar el turno/voto en la BD (UNA sola vez por participante)
         Turno::updateOrCreate(
             [
                 'juego_id'        => $juego->juego_id,
@@ -90,31 +91,37 @@ class GameController extends Controller
             ]
         );
 
+        $juego->refresh();
+        $activeRol = DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
+        $activeSectorSlug = $activeRol ? $activeRol->slug : null;
+        $shouldTransition = false;
+
+        // Emitir un SOLO evento con todos los sectores
         PlayerVoted::dispatch(
-            roomCode:   $roomCode,
-            sectorId:   $validated['sector_id'],
-            playerName: $validated['player_name'],
-            answer:     $validated['answer'],
-            type:       $validated['type']
+            $roomCode,
+            $sectorIds,
+            $validated['player_name'],
+            $validated['answer'],
+            $validated['type']
         );
 
-        // Transicionar a 'results' automáticamente cuando llega el voto decisivo:
-        // - Para questions options/slider: el voto del sector ACTIVO es el decisivo.
-        // - Para preguntas 'free': cualquier voto validador es suficiente para procesar.
-        $juego->refresh();
-        if (in_array($juego->estado, ['playing', 'challenge'])) {
-            $activeRol = DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
-            $activeSectorSlug = $activeRol ? $activeRol->slug : null;
-            $isActiveVote = ($activeSectorSlug === $validated['sector_id']);
-            $isFreeValidatorVote = ($validated['type'] === 'free' || $validated['type'] === 'validate')
-                                   && !$isActiveVote;
+        foreach ($sectorIds as $sectorId) {
+            if (in_array($juego->estado, ['playing', 'challenge'])) {
 
-            if ($isActiveVote || $isFreeValidatorVote) {
-                try {
-                    $this->gameFlow->transitionToResults($juego);
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en avance tras voto: " . $e->getMessage());
+                $isActiveVote = ($activeSectorSlug === $sectorId);
+                $isFreeValidatorVote = ($validated['type'] === 'free' || $validated['type'] === 'validate') && !$isActiveVote;
+
+                if ($isActiveVote || $isFreeValidatorVote) {
+                    $shouldTransition = true;
                 }
+            }
+        }
+
+        if ($shouldTransition) {
+            try {
+                $this->gameFlow->transitionToResults($juego);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("[HUE-CO2] Error en avance tras voto: " . $e->getMessage());
             }
         }
 
@@ -135,10 +142,13 @@ class GameController extends Controller
     public function proposal(Request $request, string $roomCode): JsonResponse
     {
         $validated = $request->validate([
-            'sector_id'     => 'required|string',
+            'sector_id'     => 'required', // Puede ser array o string
             'player_name'   => 'required|string|max:50',
             'proposal_text' => 'required|string|max:1000',
         ]);
+
+        $sectorIds = is_array($validated['sector_id']) ? $validated['sector_id'] : [$validated['sector_id']];
+
 
         $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
         $juego = Juego::where('room_code', $cleanCode)->firstOrFail();
@@ -157,10 +167,11 @@ class GameController extends Controller
 
         ProposalSubmitted::dispatch(
             roomCode:     $roomCode,
-            sectorId:     $validated['sector_id'],
+            sectorId:     $sectorIds,
             playerName:   $validated['player_name'],
             proposalText: $validated['proposal_text']
         );
+
 
         return response()->json(['status' => 'ok']);
     }

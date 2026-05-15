@@ -133,21 +133,31 @@ export default function MobileController({
     const handleVote = async (answer) => {
         console.log(`[DEBUG-PERF] Enviando voto (${answer}) a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
         setSelectedAnswer(answer);
-        // Votación en bloque para todos los sectores asignados
-        for (const r of safeRoles) {
-            await sendVote(answer, challengeType, r.id);
+        
+        // Votación en BLOQUE: enviamos todos los IDs de los sectores al mismo tiempo
+        // Esto evita bloqueos de sesión en el backend y latencias de red.
+        const sectorIds = safeRoles.map(r => r.id);
+        
+        try {
+            await sendVote(answer, challengeType, sectorIds);
+        } catch (error) {
+            console.error('[HUE-CO2] Error al enviar voto en bloque:', error);
         }
+
         // La transición a 'results' la gestiona el backend en /vote automáticamente.
-        // El polling de 1s en useGameChannel detectará el nuevo estado y actualizará la UI.
         setLocalGameState('voted');
     };
 
     const handleProposal = async () => {
         if (!proposalText.trim()) return;
-        // Propuesta en bloque para todos los sectores asignados
-        for (const r of safeRoles) {
-            await sendProposal(proposalText, r.id);
+        const sectorIds = safeRoles.map(r => r.id);
+        
+        try {
+            await sendProposal(proposalText, sectorIds);
+        } catch (error) {
+            console.error('[HUE-CO2] Error al enviar propuesta en bloque:', error);
         }
+        
         setLocalGameState('voted');
     };
 
