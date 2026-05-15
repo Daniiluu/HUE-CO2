@@ -462,6 +462,7 @@ class GameController extends Controller
             'isLocal'         => $juego ? (bool)$juego->is_local : true,
             'myPlayerName'    => $playerName,
             'myParticipantId' => $participanteId,
+            'isHost'          => filter_var(request('isHost', false), FILTER_VALIDATE_BOOLEAN) || ($participanteId && $juego && DB::table('juego_participante')->where('juego_id', $juego->juego_id)->orderBy('juego_jugador_id', 'asc')->value('participante_id') == $participanteId)
         ]);
     }
 }

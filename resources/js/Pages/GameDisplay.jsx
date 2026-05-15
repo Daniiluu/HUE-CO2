@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 import { GameBoard } from '../Components/Game/GameBoard';
 import EndgameResults from '../Components/Endgame/EndgameResults';
 
-export default function GameDisplay({ roomCode, initialMode = 'shared', isLocal = true, myPlayerName = 'Anfitrión', myParticipantId = null }) {
+export default function GameDisplay({ roomCode, initialMode = 'shared', isLocal = true, myPlayerName = 'Anfitrión', myParticipantId = null, isHost = false }) {
     // Esta página es el "Visor del Tablero" oficial.
     const [endData, setEndData] = useState(null);
 
@@ -18,6 +18,7 @@ export default function GameDisplay({ roomCode, initialMode = 'shared', isLocal 
                     isLocal={isLocal}
                     myPlayerName={myPlayerName}
                     myParticipantId={myParticipantId}
+                    isHost={isHost}
                     onEnd={(data) => setEndData(data)}
                 />
             ) : (
