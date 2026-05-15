@@ -58,6 +58,7 @@ class GameController extends Controller
         }
 
         $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
+        \Log::info("[PERF] Voto recibido en Controller para sala {$cleanCode} de {$request->player_name} a las " . microtime(true));
         $juego = Juego::where('room_code', $cleanCode)->firstOrFail();
 
         // Validar si es correcta (solo para tipo opciones)

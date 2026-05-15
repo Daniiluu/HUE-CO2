@@ -27,6 +27,7 @@ class GameStateChanged implements ShouldBroadcast
     public float  $totalHeating; // Acumulado de calentamiento (+)
     public float  $totalReduction; // Acumulado de enfriamiento (-)
     public bool   $lastTurnCorrect; // Indica si el último turno procesado fue correcto
+    public ?float $serverTime; // Timestamp para medir latencia
     public ?string $outcome; // 'victory' | 'neutral' | 'defeat' | null
 
     public function __construct(
@@ -40,7 +41,8 @@ class GameStateChanged implements ShouldBroadcast
         float  $totalHeating = 0.0,
         float  $totalReduction = 0.0,
         bool   $lastTurnCorrect = false,
-        ?string $outcome = null
+        ?string $outcome = null,
+        ?float $serverTime = null
     ) {
         $this->roomCode   = $roomCode;
         $this->state      = $state;
@@ -53,6 +55,7 @@ class GameStateChanged implements ShouldBroadcast
         $this->totalReduction = $totalReduction;
         $this->lastTurnCorrect = $lastTurnCorrect;
         $this->outcome = $outcome;
+        $this->serverTime = $serverTime;
     }
 
     public function broadcastOn(): array

@@ -131,6 +131,7 @@ export default function MobileController({
     const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
     const handleVote = async (answer) => {
+        console.log(`[DEBUG-PERF] Enviando voto (${answer}) a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
         setSelectedAnswer(answer);
         // Votación en bloque para todos los sectores asignados
         for (const r of safeRoles) {

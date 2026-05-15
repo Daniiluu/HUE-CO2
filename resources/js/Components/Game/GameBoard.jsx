@@ -33,6 +33,8 @@ export function GameBoard({
 
     useEffect(() => {
         if (serverGameState) {
+            console.log(`[DEBUG-PERF] GameBoard detectó cambio de estado a: [${serverGameState.state}] a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
+            
             if (serverGameState.state === 'challenge' || serverGameState.state === 'playing' || serverGameState.state === 'results') {
                 setCurrentChallenge(serverGameState.challenge);
                 setTurnNumber(serverGameState.turnNumber);

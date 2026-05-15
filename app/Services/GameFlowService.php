@@ -20,10 +20,12 @@ class GameFlowService
     {
         if (!in_array($juego->estado, ['playing', 'challenge'])) return;
 
-        DB::transaction(function () use ($juego) {
-            $turnResults = $this->processTurnResults($juego);
-            \Log::info('Turn results in transitionToResults', ['turnResults' => $turnResults]);
+        $startTime = microtime(true);
+        \Log::info("[PERF] Iniciando transitionToResults para juego {$juego->juego_id}");
 
+        DB::transaction(function () use ($juego, $startTime) {
+            $turnResults = $this->processTurnResults($juego);
+            
             $acierto = collect($turnResults)->where('correct', true)->count() > 0;
             \Illuminate\Support\Facades\Cache::put('juego_'.$juego->juego_id.'_last_correct', $acierto, 3600);
 
@@ -38,6 +40,10 @@ class GameFlowService
             }
 
             $juego->save();
+            
+            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            \Log::info("[PERF] Finalizando transición a resultados. Duración: {$duration}ms");
+            
             $this->broadcastState($juego, $turnResults);
         });
     }
@@ -308,7 +314,8 @@ class GameFlowService
                 $juego->total_calentamiento,
                 $juego->total_reduccion,
                 \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
-                $outcome
+                $outcome,
+                microtime(true) // Enviar timestamp del servidor para medir latencia
             );
         } catch (\Exception $e) {
             \Log::warning('[HUE-CO2] Error en broadcast: ' . $e->getMessage());

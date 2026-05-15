@@ -39,9 +39,11 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
 
         channelRef.current = window.Echo.channel(channelName)
             .listen('PlayerVoted', (e) => {
+                console.log(`[DEBUG-PERF] Recibido PlayerVoted de ${e.sectorId} (${e.playerName}) a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
                 setVotes(prev => ({ ...prev, [e.sectorId]: e.answer }));
             })
             .listen('ProposalSubmitted', (e) => {
+                console.log(`[DEBUG-PERF] Recibida Propuesta de ${e.sectorId} a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
                 setProposal({
                     sectorId:    e.sectorId,
                     playerName:  e.playerName,
@@ -49,6 +51,12 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                 });
             })
             .listen('GameStateChanged', (e) => {
+                const now = Date.now();
+                const serverTimeMs = e.serverTime ? e.serverTime * 1000 : null;
+                const latency = serverTimeMs ? (now - serverTimeMs).toFixed(0) : 'unknown';
+                
+                console.log(`[DEBUG-PERF] Recibido GameStateChanged: [${e.state}] a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}. Latencia estimada: ${latency}ms`);
+                
                 setGameState(prev => {
                     // Si el turno ha avanzado, limpiar votos y propuestas inmediatamente
                     if (!prev || e.turnNumber !== prev.turnNumber || e.state === 'challenge') {
