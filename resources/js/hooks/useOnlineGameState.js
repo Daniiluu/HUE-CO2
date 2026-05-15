@@ -95,14 +95,20 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
 
     const hasVoted = votedChallengeId === currentChallenge?.id;
 
+    const isActuallyHost = useMemo(() => {
+        return serverGameState?.hostId === (Number(myParticipantId) || myParticipantId);
+    }, [serverGameState?.hostId, myParticipantId]);
+
     // 4. Efectos de sincronización
     useEffect(() => {
         const state = serverGameState?.state;
         
         if (state === 'challenge' || state === 'playing') {
             setIsPaused(false);
-            // Resetear el reloj con el tiempo de la carta (siempre, no solo si existe)
-            setTimeLeft(serverGameState?.challenge?.time ?? 30);
+            // Resetear el reloj con el tiempo de la carta
+            if (serverGameState?.challenge?.time) {
+                setTimeLeft(serverGameState.challenge.time);
+            }
         } else if (state === 'results' || state === 'lobby') {
             setIsPaused(true);
         }
@@ -110,7 +116,8 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         // Auto-avance desde Resultados al siguiente Reto (Solo modo Online puro)
         if (state === 'results' && !roomCode.startsWith('LOCAL_')) {
             // El anfitrión se encarga de avanzar tras 4 segundos de feedback
-            if (normalize(myPlayerName) === 'anfitrion') {
+            // Ahora usamos isActuallyHost que es más fiable que el nombre
+            if (isActuallyHost || normalize(myPlayerName) === 'anfitrion') {
                 const timer = setTimeout(() => {
                     console.log("[HUE-CO2] Auto-avanzando desde Resultados...");
                     axios.post(`/api/game/${cleanRoomCode}/advance`).catch(e => console.error(e));
@@ -118,16 +125,19 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
                 return () => clearTimeout(timer);
             }
         }
-    }, [currentChallenge?.id, serverGameState?.state, myPlayerName, roomCode]);
+    }, [currentChallenge?.id, serverGameState?.state, myPlayerName, roomCode, isActuallyHost]);
 
-    // Resetear estados locales cuando cambia el reto O el turno
+    // Resetear estados locales cuando cambia el reto, el turno O el estado del juego
     useEffect(() => {
-        if (currentChallenge?.id || serverGameState?.turnNumber) {
-            setVotedChallengeId(null);
-            setLastFeedback(null);
-            setIsSending(false);
+        if (currentChallenge?.id || serverGameState?.turnNumber || serverGameState?.state) {
+            // Si el estado es 'challenge' o 'playing', nos aseguramos de que el mando esté limpio
+            if (serverGameState?.state === 'challenge' || serverGameState?.state === 'playing') {
+                setVotedChallengeId(null);
+                setLastFeedback(null);
+                setIsSending(false);
+            }
         }
-    }, [currentChallenge?.id, serverGameState?.turnNumber]);
+    }, [currentChallenge?.id, serverGameState?.turnNumber, serverGameState?.state]);
 
     // 5. Acciones
     const handleVote = async (answer) => {
@@ -192,6 +202,6 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         handleVote,
         resetMando,
         isActivePlayerInactive: activeSectorInChallenge?.isInactive || false,
-        isActuallyHost: serverGameState?.hostId === (Number(myParticipantId) || myParticipantId)
+        isActuallyHost
     };
 }

@@ -223,7 +223,8 @@ class GameController extends Controller
                 'totalHeating' => $juego->total_calentamiento,
                 'totalReduction' => $juego->total_reduccion,
                 'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
-                'outcome' => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null
+                'outcome' => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null,
+                'hostId' => DB::table('juego_participante')->where('juego_id', $juego->juego_id)->orderBy('juego_jugador_id', 'asc')->value('participante_id')
             ]
         ]);
     }
