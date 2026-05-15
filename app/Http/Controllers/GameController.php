@@ -328,11 +328,10 @@ class GameController extends Controller
             return response()->json(['error' => 'Sala no encontrada'], 404);
         }
 
-        // Auto-rescate automático de sectores (cada 10s para no saturar la BD)
+        // Auto-rescate automático de sectores (atómico, cada 10s máximo)
         $cacheKey = "juego_rescue_{$juego->juego_id}";
-        if ($juego->estado === 'playing' && !\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+        if ($juego->estado === 'playing' && \Illuminate\Support\Facades\Cache::add($cacheKey, true, 10)) {
             app(\App\Services\GameFlowService::class)->redistributeInactiveRoles($juego);
-            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 10);
         }
 
         // Obtener TODOS los roles de cada participante con sus slugs correctos
@@ -391,6 +390,7 @@ class GameController extends Controller
 
     /**
      * Renderiza la página del tablero (GameDisplay)
+     * También registra al jugador en juego_participante si aún no está.
      */
     public function board(string $roomCode)
     {
@@ -400,22 +400,67 @@ class GameController extends Controller
         \Log::info("[HUE-CO2] Cargando tablero para sala: {$cleanCode}");
 
         $user = auth()->user();
-        $participanteId = null;
-        
+        $participanteId = request('participantId');
+        $playerName = request('playerName', 'Anfitrión');
+
         if ($user && $juego) {
-            $participanteId = \Illuminate\Support\Facades\DB::table('juego_participante')
+            // Usuario autenticado: buscar su participante por user_id Y nombre
+            // (para no confundir Host con Guest en la misma sesión)
+            $found = DB::table('juego_participante')
                 ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
                 ->where('juego_participante.juego_id', $juego->juego_id)
                 ->where('participantes.user_id', $user->id)
+                ->where('participantes.usuario', $playerName)
                 ->value('participantes.participante_id');
+
+            if ($found) {
+                $participanteId = $found;
+            } elseif (!$participanteId) {
+                // No está en la partida todavía — registrarlo automáticamente
+                $participante = \App\Models\Participante::create([
+                    'usuario' => $user->username ?? $user->name,
+                    'user_id' => $user->id,
+                ]);
+                $juego->participantes()->attach($participante->participante_id, [
+                    'rol_id'       => null,
+                    'eco_fichas'   => 12,
+                    'puntuacion'   => 0,
+                    'last_seen_at' => now(),
+                ]);
+                $participanteId = $participante->participante_id;
+                \Log::info("[HUE-CO2] Jugador auth registrado automáticamente en sala {$cleanCode}: {$participanteId}");
+            }
+
+            $playerName = $user->username ?? $user->name;
+        } elseif ($participanteId && $juego) {
+            // Jugador anónimo con participantId en la URL
+            // Verificar que está en juego_participante; si no, registrarlo
+            $exists = DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->where('participante_id', $participanteId)
+                ->exists();
+
+            if (!$exists) {
+                // Buscar el participante por ID y añadirlo a la sala
+                $participante = \App\Models\Participante::find($participanteId);
+                if ($participante) {
+                    $juego->participantes()->attach($participante->participante_id, [
+                        'rol_id'       => null,
+                        'eco_fichas'   => 12,
+                        'puntuacion'   => 0,
+                        'last_seen_at' => now(),
+                    ]);
+                    \Log::info("[HUE-CO2] Jugador anónimo {$participanteId} registrado automáticamente en sala {$cleanCode}");
+                }
+            }
         }
 
         return \Inertia\Inertia::render('GameDisplay', [
-            'roomCode' => $cleanCode,
-            'initialMode' => request('mode', 'shared'),
-            'isLocal' => $juego ? (bool)$juego->is_local : true,
-            'myPlayerName' => $user ? ($user->username ?? $user->name) : request('playerName', 'Anfitrión'),
-            'myParticipantId' => $participanteId ?? request('participantId')
+            'roomCode'        => $cleanCode,
+            'initialMode'     => request('mode', 'shared'),
+            'isLocal'         => $juego ? (bool)$juego->is_local : true,
+            'myPlayerName'    => $playerName,
+            'myParticipantId' => $participanteId,
         ]);
     }
 }

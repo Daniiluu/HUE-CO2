@@ -155,11 +155,9 @@ export default function GuestPortal({ pin = null }) {
         if (roomCode && !roomCode.startsWith('LOCAL_')) {
             try {
                 const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
-                // 1. Avisar al servidor para que reparta roles y empiece
+                // Llamar al servidor para que reparta los roles y arranque el primer turno.
+                // El lock en GameFlowService garantiza que solo se ejecuta una vez.
                 await axios.post(`/api/game/${cleanCode}/advance`);
-                
-                // 2. Navegar a la vista de tablero (OnlinePlayerBoard)
-                // Usamos el modo 'playing' pero configuraremos el render para que muestre el tablero
                 navigateTo('playing');
             } catch (error) {
                 console.error('[HUE-CO2] Error al iniciar partida online:', error);
@@ -199,9 +197,13 @@ export default function GuestPortal({ pin = null }) {
 
             if (!gameIsLocal) {
                 // Si es Online, redirigir al tablero completo usando el router de Inertia
-                router.get(`/tablero/${cleanPin}`, {
-                    playerName: data.nickname,
-                    participantId: response.data.participante?.participante_id
+                // Usamos la URL absoluta /tablero/... para evitar errores de base_url
+                router.visit(`/tablero/${cleanPin}`, {
+                    method: 'get',
+                    data: {
+                        playerName: data.nickname,
+                        participantId: response.data.participante?.participante_id
+                    }
                 });
             } else {
                 navigateTo('playing');

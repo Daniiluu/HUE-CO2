@@ -131,7 +131,10 @@ class JuegoController extends Controller
 
         if ($request->user()) {
             $participanteData['user_id'] = $request->user()->id;
-            $participanteData['usuario'] = $request->user()->username ?? $request->user()->name;
+            // Solo usamos el nombre del sistema si no se proporcionó uno manualmente
+            if (empty($participanteData['usuario'])) {
+                $participanteData['usuario'] = $request->user()->username ?? $request->user()->name;
+            }
         }
 
         if (empty($participanteData['usuario'])) {
@@ -139,14 +142,15 @@ class JuegoController extends Controller
         }
 
         // Buscar si el usuario ya está en la sala (para permitir reconexión)
+        // IMPORTANTE: Para evitar que el Host y el Guest compartan ID en la misma máquina,
+        // la reconexión solo se activa si coincide el user_id Y el nombre de usuario.
         $existingQuery = $juego->participantes();
         if ($request->user()) {
-            // Si el cliente está autenticado, buscamos un participante vinculado a su user_id
-            $existingQuery->where('participantes.user_id', $request->user()->id);
+            $existingQuery->where('participantes.user_id', $request->user()->id)
+                          ->where('participantes.usuario', $participanteData['usuario']);
         } else {
-            // Para invitados anónimos, desactivamos la reconexión por nombre para permitir duplicados (admin vs admin)
-            // En el futuro podríamos usar un token en localStorage para permitir reconexión real
-            $existingQuery->whereRaw('1 = 0'); // No encontrar a nadie por nombre
+            // Para invitados anónimos, buscamos por nombre (o desactivamos si queremos permitir duplicados)
+            $existingQuery->where('participantes.usuario', $participanteData['usuario']);
         }
         
         $existingParticipante = $existingQuery->first();

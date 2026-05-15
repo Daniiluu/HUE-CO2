@@ -104,15 +104,14 @@ export function GameBoard({
         }
     }, [roomCode, isLocalGame, onEnd]);
 
-    // Al montar, si no hay reto, pedimos al servidor que inicie el primero
-    // IMPORTANTE: Solo hacemos esto si es una partida LOCAL PURA (sin código de sala).
-    // Si hay código de sala, el inicio lo gestiona el GuestPortal/Lobby para evitar dobles arranques.
+    // Al montar, si es juego LOCAL PURO (sin código de sala) pedimos el primer reto.
+    // En modo online o con sala LOCAL_, el advance ya fue llamado por el anfitrión.
     useEffect(() => {
-        const isPureLocal = !roomCode || roomCode.startsWith('LOCAL_');
-        if (isPureLocal && isLocalGame && (!currentChallenge || Object.keys(currentChallenge).length === 0)) {
+        const isPureLocal = !roomCode; // Solo si NO hay roomCode en absoluto
+        if (isPureLocal && (!currentChallenge || Object.keys(currentChallenge).length === 0)) {
             nextChallenge();
         }
-    }, [roomCode, isLocalGame]);
+    }, [roomCode]);
 
     // ── Carga del estado inicial para modo ONLINE (sin esperar WebSocket) ────
     useEffect(() => {

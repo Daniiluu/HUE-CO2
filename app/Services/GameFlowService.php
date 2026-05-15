@@ -49,11 +49,21 @@ class GameFlowService
      */
     public function advanceTurn(Juego $juego)
     {
+        // Lock atómico para prevenir doble avance desde peticiones concurrentes
+        // (e.g.: el jugador llama a /advance desde el voto Y el host desde auto-avance)
+        $lockKey = "juego_advance_{$juego->juego_id}";
+        if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 8)) {
+            \Log::info("[HUE-CO2] advanceTurn ya en ejecución para sala {$juego->room_code}, ignorando petición duplicada.");
+            $juego->refresh();
+            return $juego;
+        }
+
         return DB::transaction(function () use ($juego) {
             // Si el juego ya terminó (por límite de temperatura o turnos), no permitir avanzar
             if ($juego->estado === 'ended') {
                 return $juego;
             }
+
 
             $turnResults = [];
 
@@ -143,46 +153,71 @@ class GameFlowService
         });
     }
 
-    /**
-     * Distribuye los 6 roles de forma aleatoria y equitativa entre los participantes conectados.
-     */
     protected function initializeParticipantRoles(Juego $juego)
     {
-        // Recargar participantes frescos desde la BD
-        $participantes = $juego->participantes()->distinct()->get();
-        $numParticipantes = $participantes->count();
-
-        if ($numParticipantes === 0) return;
-
-        // Obtener los 6 sectores únicos de la base de datos y mezclarlos
-        $rolesIds = DB::table('roles')->pluck('rol_id')->shuffle()->values();
-        
-        if (count($rolesIds) === 0) return;
-
-        // Limpiar absolutamente todas las asignaciones previas de este juego
-        // (Esto elimina los registros de 'espera' sin rol asignado)
-        DB::table('juego_participante')->where('juego_id', $juego->juego_id)->delete();
-
-        $inserts = [];
-
-        // Reparto equitativo y único de los 6 roles entre los participantes conectados
-        foreach ($rolesIds as $i => $rol_id) {
-            $p = $participantes[$i % $numParticipantes];
-            $inserts[] = [
-                'juego_id'        => $juego->juego_id,
-                'participante_id' => $p->participante_id,
-                'rol_id'          => $rol_id,
-                'eco_fichas'      => 12,
-                'puntuacion'      => 0,
-                'last_seen_at'    => now(),
-                'created_at'      => now(),
-                'updated_at'      => now(),
-            ];
+        // 1. Bloqueo para evitar carreras (race conditions)
+        $lockKey = "juego_init_roles_{$juego->juego_id}";
+        if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 10)) {
+            \Log::info("[HUE-CO2] Inicialización de roles ya en curso para sala {$juego->juego_id}");
+            return;
         }
 
-        DB::table('juego_participante')->insert($inserts);
-        
-        $juego->load('participantes');
+        try {
+            // 2. Verificar si ya existen roles asignados (para no duplicar)
+            $existingRolesCount = DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->whereNotNull('rol_id')
+                ->count();
+
+            if ($existingRolesCount >= 6) {
+                \Log::info("[HUE-CO2] Los roles ya están asignados para la sala {$juego->juego_id}");
+                return;
+            }
+
+            // 3. Obtener participantes actuales (los que están en la lobby con rol null)
+            $participantesIds = DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->pluck('participante_id')
+                ->unique()
+                ->toArray();
+
+            $numParticipantes = count($participantesIds);
+            if ($numParticipantes === 0) return;
+
+            // 4. Obtener los 6 sectores únicos y mezclarlos
+            $rolesIds = DB::table('roles')->pluck('rol_id')->shuffle()->values();
+            if (count($rolesIds) === 0) return;
+
+            // 5. Limpiar registros de lobby (solo los que tienen rol null) para este juego
+            DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->whereNull('rol_id')
+                ->delete();
+
+            $inserts = [];
+
+            // 6. Reparto equitativo y único de los 6 roles
+            foreach ($rolesIds as $i => $rol_id) {
+                $p_id = $participantesIds[$i % $numParticipantes];
+                $inserts[] = [
+                    'juego_id'        => $juego->juego_id,
+                    'participante_id' => $p_id,
+                    'rol_id'          => $rol_id,
+                    'eco_fichas'      => 12,
+                    'puntuacion'      => 0,
+                    'last_seen_at'    => now(),
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ];
+            }
+
+            DB::table('juego_participante')->insert($inserts);
+            $juego->load('participantes');
+            
+        } finally {
+            // No liberamos el lock inmediatamente para dar margen a la propagación de la DB
+            // Se liberará solo por tiempo (10s)
+        }
     }
 
     /**
