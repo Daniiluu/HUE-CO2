@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, X, ChevronRight } from 'lucide-react';
+import { CheckCircle2, X, ChevronRight, Minus } from 'lucide-react';
 
 /**
  * FeedbackOverlay
@@ -101,7 +101,7 @@ export default function FeedbackOverlay({ isCorrect, message, onNext }) {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
                         onClick={onNext}
-                        className={`mt-2 px-10 py-4 rounded-2xl text-white font-black text-lg flex items-center gap-3 shadow-xl active:scale-95 transition-all ${colors.btn}`}
+                        className={`mt-2 px-10 py-4 rounded-2xl text-white font-black text-lg flex items-center gap-3 shadow-xl active:scale-95 transition-all ${theme.btn}`}
                     >
                         Siguiente Pregunta
                         <ChevronRight className="w-6 h-6" />

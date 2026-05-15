@@ -247,7 +247,7 @@ class GameFlowService
     /**
      * Centraliza el envío de información a los clientes
      */
-    protected function broadcastState(Juego $juego, array $turnResults = [], ?string $outcome = null)
+    public function broadcastState(Juego $juego, array $turnResults = [], ?string $outcome = null)
     {
         $startBroadcast = microtime(true);
 
@@ -547,11 +547,7 @@ class GameFlowService
             $propuestaActiva = Turno::where([
                 'juego_id' => $juego->juego_id,
                 'carta_id' => $carta->carta_id,
-                'participante_id' => DB::table('juego_participante')
-                    ->where('juego_id', $juego->juego_id)
-                    ->where('rol_id', $juego->current_rol_id)
-                    ->value('participante_id')
-            ])->value('resultado');
+            ])->whereNotNull('resultado')->value('resultado');
         }
 
         return [
@@ -568,8 +564,12 @@ class GameFlowService
             'penalizacion' => $carta->penalizacion,
             'activeSectorId' => $activeRol ? $activeRol->slug : null,
             'turn' => (($juego->current_turn - 1) % 6) + 1,
+            'sliderMin' => $pregunta && $pregunta->rango_min !== null ? $pregunta->rango_min : 0,
+            'sliderMax' => $pregunta && $pregunta->rango_max !== null ? $pregunta->rango_max : 100,
+            'unit' => ($pregunta && $pregunta->rango_max !== null && $pregunta->rango_max !== 100) ? '' : '%',
         ];
     }
+
 
     /**
      * Redistribuye los roles de los jugadores inactivos entre los que siguen conectados.

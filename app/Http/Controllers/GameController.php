@@ -172,6 +172,9 @@ class GameController extends Controller
             proposalText: $validated['proposal_text']
         );
 
+        // Forzar broadcast del estado completo para que todos vean el cambio a modo 'validate'
+        $this->gameFlow->broadcastState($juego);
+
 
         return response()->json(['status' => 'ok']);
     }
@@ -272,11 +275,7 @@ class GameController extends Controller
             $propuestaActiva = Turno::where([
                 'juego_id' => $juego->juego_id,
                 'carta_id' => $juego->current_carta_id,
-                'participante_id' => DB::table('juego_participante')
-                    ->where('juego_id', $juego->juego_id)
-                    ->where('rol_id', $juego->current_rol_id)
-                    ->value('participante_id')
-            ])->value('resultado');
+            ])->whereNotNull('resultado')->value('resultado');
         }
 
         $challengeData = [
@@ -291,7 +290,11 @@ class GameController extends Controller
             'time' => $carta->tiempo ?? 20,
             'puntos' => $carta->puntos,
             'penalizacion' => $carta->penalizacion,
+            'sliderMin' => $pregunta && $pregunta->rango_min !== null ? $pregunta->rango_min : 0,
+            'sliderMax' => $pregunta && $pregunta->rango_max !== null ? $pregunta->rango_max : 100,
+            'unit' => ($pregunta && $pregunta->rango_max !== null && $pregunta->rango_max !== 100) ? '' : '%',
         ];
+
         
         $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
         $challengeData['activeSectorId'] = $activeRol ? $activeRol->slug : null;
@@ -306,24 +309,27 @@ class GameController extends Controller
     public function heartbeat(Request $request, string $roomCode): JsonResponse
     {
         $participanteId = $request->input('participante_id');
-        \Log::info("[HUE-CO2] Heartbeat recibido de participante: {$participanteId} en sala {$roomCode}");
         
         if (!$participanteId) {
             return response()->json(['error' => 'ID de participante requerido'], 400);
         }
 
         $cleanCode = strtoupper(str_replace(' ', '', $roomCode));
-        $juego = Juego::where('room_code', $cleanCode)->first();
+        $juego = Juego::where('room_code', $cleanCode)->select('juego_id')->first();
         
         if (!$juego) {
             return response()->json(['error' => 'Sala no encontrada'], 404);
         }
 
-        // Actualizar el timestamp en la tabla pivot
-        DB::table('juego_participante')
-            ->where('juego_id', $juego->juego_id)
-            ->where('participante_id', $participanteId)
-            ->update(['last_seen_at' => now()]);
+        try {
+            // Actualización rápida sin logs para evitar saturación y deadlocks
+            DB::table('juego_participante')
+                ->where('juego_id', $juego->juego_id)
+                ->where('participante_id', $participanteId)
+                ->update(['last_seen_at' => now()]);
+        } catch (\Exception $e) {
+            // Ignorar errores de bloqueo temporal (deadlocks), el siguiente heartbeat lo arreglará
+        }
 
         return response()->json(['status' => 'ok']);
     }

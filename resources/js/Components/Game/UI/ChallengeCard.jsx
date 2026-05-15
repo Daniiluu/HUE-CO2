@@ -36,10 +36,27 @@ export default function ChallengeCard({
     onApply, 
     readOnly = false,
     sectorColor = 'blue',
-    isCompact = false
+    isCompact = false,
+    isOnline = false,
+    onProposal = null
 }) {
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [proposalText, setProposalText] = useState('');
+
+    // Resetear estados internos cuando cambia el reto para evitar "heredar" texto de turnos anteriores
+    React.useEffect(() => {
+        setSelectedAnswer(null);
+        setProposalText('');
+        
+        // Autocorregir slider si está fuera de rango
+        if (challenge?.type === 'slider') {
+            const min = challenge.sliderMin ?? 0;
+            const max = challenge.sliderMax ?? 100;
+            if (intensity < min || intensity > max) {
+                setIntensity?.(Math.floor((min + max) / 2));
+            }
+        }
+    }, [challenge?.id]);
 
     if (!challenge || Object.keys(challenge).length === 0) {
         return (
@@ -128,22 +145,51 @@ export default function ChallengeCard({
 
     const renderOpen = () => (
         <div className="flex flex-col flex-1 h-full pb-2">
-            {/* Si NO es readOnly, significa que es el turno del jugador de INTERACTUAR (votar) */}
-            {/* En preguntas abiertas, el que 'interactúa' es el validador, no el que habla */}
             {!readOnly ? (
-                renderValidate()
-            ) : (
-                <div className="flex-1 flex flex-col justify-center items-center">
-                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-6 text-center text-amber-800 shadow-inner w-full">
-                        <span className="text-3xl mb-4 block animate-pulse">🎤</span>
-                        <h4 className="font-black uppercase tracking-widest text-sm mb-2">Tu turno de hablar</h4>
-                        <p className="font-medium text-sm">
-                            Responde a la pregunta en voz alta frente al grupo.
+                <div className="flex-1 flex flex-col justify-center items-center gap-4">
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center text-amber-800 shadow-inner w-full">
+                        <span className="text-3xl mb-2 block">🎤</span>
+                        <h4 className="font-black uppercase tracking-widest text-sm mb-1">Tu turno de hablar</h4>
+                        <p className="font-medium text-[11px] leading-tight">
+                            {isOnline 
+                                ? "Responde en voz alta y escribe un resumen para que el grupo pueda votarte." 
+                                : "Responde a la pregunta en voz alta frente al grupo."}
                         </p>
                     </div>
-                    <div className="text-slate-400 font-bold uppercase tracking-widest text-[10px] text-center">
-                        Los demás sectores evaluarán tu respuesta
-                    </div>
+
+                    {isOnline && (
+                        <textarea
+                            value={proposalText}
+                            onChange={(e) => setProposalText(e.target.value)}
+                            placeholder="Escribe aquí el resumen de tu respuesta..."
+                            rows={3}
+                            className="w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-amber-400 resize-none bg-white shadow-sm"
+                        />
+                    )}
+
+                    <button 
+                        onClick={() => {
+                            if (isOnline && onProposal) {
+                                onProposal(proposalText.trim());
+                            } else {
+                                onApply?.(isOnline ? (proposalText.trim() || 'oral_response') : 'oral_response');
+                            }
+                        }}
+                        disabled={isOnline && !proposalText.trim()}
+                        className={`w-full text-white font-black py-4 rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 ${(isOnline && !proposalText.trim()) ? 'bg-slate-300 cursor-not-allowed' : c.base}`}
+                    >
+                        <CheckCircle2 size={20} /> {isOnline ? 'Enviar respuesta al grupo' : 'Terminé de responder'}
+                    </button>
+                </div>
+            ) : (
+                <div className="flex-1 mt-4 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-white/50 rounded-2xl p-6 text-center">
+                    <span className="text-3xl mb-4 block animate-pulse">⏳</span>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[11px] mb-2">
+                        {isOnline ? 'Esperando respuesta del jugador...' : 'Escucha con atención'}
+                    </p>
+                    <p className="text-slate-500 font-medium text-sm">
+                        {isOnline ? 'El jugador activo está escribiendo su respuesta.' : 'El jugador activo está respondiendo en voz alta...'}
+                    </p>
                 </div>
             )}
         </div>

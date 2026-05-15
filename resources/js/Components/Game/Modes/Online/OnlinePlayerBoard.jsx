@@ -52,7 +52,7 @@ export default function OnlinePlayerBoard({
         isConnected, serverGameState, currentChallenge, isMyTurn, hasVoted,
         myAssignedRoles, activePlayerName, lastFeedback, setLastFeedback,
         lastMessage, serverChat, localMessages, setLocalMessages, sendChatMessage,
-        handleVote, resetMando, isActivePlayerInactive
+        handleVote, handleProposal, resetMando, isActivePlayerInactive
     } = useOnlineGameState(roomCode, myPlayerName, challenge, sectors, myParticipantId, initialTimeLeft);
 
 
@@ -121,7 +121,7 @@ export default function OnlinePlayerBoard({
 
             {/* MAIN CONTENT */}
             <main className="flex-1 min-h-0 w-full max-w-[1750px] mx-auto px-8 relative z-10 flex items-center justify-between gap-6">
-                <GlobalThermometer temperature={intensity} />
+                <GlobalThermometer temperature={serverGameState?.temperature ?? 0} />
                 {/* Tablero Orbital - Sincronizado con el servidor */}
                 <OrbitalBoard 
                     sectors={sectors.map(s => {
@@ -145,11 +145,13 @@ export default function OnlinePlayerBoard({
                         onApply={handleVote}
                         sectorColor={currentDisplayRole?.color || 'blue'}
                         isCompact={true}
+                        isOnline={true}
+                        onProposal={handleProposal}
                         readOnly={hasVoted || (() => {
                             const type = currentChallenge?.type;
                             // Para preguntas abiertas (free/open): el activo responde en voz alta
-                            // → readOnly=true para el activo (no puede votar), false para los demás (validan)
-                            if (type === 'free' || type === 'open') return isMyTurn;
+                            // → readOnly=false para el activo (escribe), true para los demás (esperan)
+                            if (type === 'free' || type === 'open') return !isMyTurn;
                             // Para validación de propuesta: el activo NO vota, los demás sí
                             if (type === 'validate') return isMyTurn;
                             // Para options/slider: solo el activo puede interactuar

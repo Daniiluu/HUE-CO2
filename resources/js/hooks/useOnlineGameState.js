@@ -50,27 +50,6 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     const activePlayerNameRaw = activeSectorInChallenge?.playerName || '';
     const activeParticipanteId = activeSectorInChallenge?.participanteId;
     
-    const isMyTurn = useMemo(() => {
-        const activePID = Number(activeParticipanteId);
-        const myPID = Number(myParticipantId);
-        
-        // 1. Prioridad absoluta al ID numérico (Evita colisiones de nombres como "Jugador" vs "Jugador")
-        if (activePID && myPID) {
-            return activePID === myPID;
-        }
-        
-        // 2. Fallback por nombre normalizado (para anfitrión o casos donde el ID no llegó)
-        const normalizedActive = normalize(activePlayerNameRaw);
-        const normalizedMe = normalize(myPlayerName);
-        
-        if (!normalizedActive || !normalizedMe || normalizedActive === 'esperando...') return false;
-        
-        return (
-            normalizedActive === normalizedMe ||
-            (normalizedMe === 'anfitrion' && normalizedActive === 'anfitrion')
-        );
-    }, [activeParticipanteId, myParticipantId, activePlayerNameRaw, myPlayerName]);
-
     const myAssignedRoles = useMemo(() => {
         if (!sectors || sectors.length === 0) return [];
         
@@ -92,6 +71,29 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             return sName === myName || (myName === 'anfitrion' && sName === 'anfitrion');
         });
     }, [sectors, myParticipantId, myPlayerName]);
+
+    const isMyTurn = useMemo(() => {
+        // 1. Verificación por ID de participante (más segura)
+        const activePID = Number(activeParticipanteId);
+        const myPID = Number(myParticipantId);
+        if (activePID && myPID && activePID === myPID) return true;
+
+        // 2. Verificación por Rol/Sector (si yo tengo el sector que está activo, es mi turno)
+        const myRoleSlugs = myAssignedRoles.map(r => r.id);
+        if (currentChallenge?.activeSectorId && myRoleSlugs.includes(currentChallenge.activeSectorId)) {
+            return true;
+        }
+        
+        // 3. Fallback por nombre normalizado
+        const normalizedActive = normalize(activePlayerNameRaw);
+        const normalizedMe = normalize(myPlayerName);
+        if (!normalizedActive || !normalizedMe || normalizedActive === 'esperando...') return false;
+        
+        return (
+            normalizedActive === normalizedMe ||
+            (normalizedMe === 'anfitrion' && normalizedActive === 'anfitrion')
+        );
+    }, [activeParticipanteId, myParticipantId, activePlayerNameRaw, myPlayerName, myAssignedRoles, currentChallenge?.activeSectorId]);
 
     const hasVoted = votedChallengeId === currentChallenge?.id;
 
@@ -181,10 +183,11 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             setVotedChallengeId(currentChallenge?.id);
             setLastFeedback(response.data.is_correct);
 
-            // Si es online puro (sin LocalDisplayBoard manejando el avance), avanzamos el turno.
-            // Para preguntas free/open: NO disparamos advance desde aquí — el backend lo hace
-            // automáticamente cuando llegan TODOS los votos de validación.
-            if (!roomCode.startsWith('LOCAL_') && challengeType !== 'free' && challengeType !== 'open') {
+            // Si es online puro, avanzamos el turno SOLO si NO es una pregunta libre.
+            // Para preguntas free/open, el avance ocurre DESPUÉS de que el grupo vote (en la fase validate).
+            const tipoPregunta = currentChallenge?.type;
+            const esPreguntaLibre = tipoPregunta === 'free' || tipoPregunta === 'open';
+            if (!roomCode.startsWith('LOCAL_') && !esPreguntaLibre) {
                 setTimeout(() => {
                     axios.post(`/api/game/${cleanRoomCode}/advance`).catch(e => console.error(e));
                 }, 2500);
@@ -193,6 +196,39 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             return response.data;
         } catch (error) {
             console.error("[useOnlineGameState] Error al votar:", error);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleProposal = async (text) => {
+        console.log("[useOnlineGameState] handleProposal disparado con texto:", text);
+        console.log("[useOnlineGameState] Estado actual - isMyTurn:", isMyTurn, "isSending:", isSending);
+        
+        // Eliminamos el bloqueo local de isMyTurn. Si la UI muestra el botón, dejamos que el servidor procese la petición.
+        if (isSending) {
+            console.warn("[useOnlineGameState] Bloqueado: Ya se está enviando una petición.");
+            return;
+        }
+        if (!text) return;
+
+        setIsSending(true);
+        console.log("[useOnlineGameState] Enviando propuesta a:", `/api/game/${cleanRoomCode}/proposal`);
+
+        try {
+            const response = await axios.post(`/api/game/${cleanRoomCode}/proposal`, {
+                sector_id: currentChallenge?.activeSectorId,
+                player_name: myPlayerName || 'Jugador Online',
+                proposal_text: text,
+                participant_id: myParticipantId 
+            });
+            
+            console.log("[useOnlineGameState] Propuesta enviada con éxito:", response.data);
+            setVotedChallengeId(currentChallenge?.id); 
+            
+        } catch (error) {
+            console.error("[useOnlineGameState] Error al enviar propuesta:", error);
+            alert("Error al enviar la respuesta. Por favor, inténtalo de nuevo.");
         } finally {
             setIsSending(false);
         }
@@ -220,6 +256,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         setLocalMessages,
         sendChatMessage,
         handleVote,
+        handleProposal,
         resetMando,
         isActivePlayerInactive: activeSectorInChallenge?.isInactive || false,
         isActuallyHost

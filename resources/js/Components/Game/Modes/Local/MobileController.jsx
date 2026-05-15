@@ -107,7 +107,11 @@ export default function MobileController({
         if (serverGameState.challenge && typeof serverGameState.challenge === 'object' && Object.keys(serverGameState.challenge).length > 0) {
             setCurrentChallenge(serverGameState.challenge);
             setSelectedAnswer(null);
-            setSliderValue(serverGameState.challenge.sliderDefault ?? 50);
+            
+            const min = serverGameState.challenge.sliderMin ?? 0;
+            const max = serverGameState.challenge.sliderMax ?? 100;
+            setSliderValue(Math.floor((min + max) / 2));
+            
             setProposalText('');
         }
     }, [serverGameState]);
@@ -171,10 +175,10 @@ export default function MobileController({
         const activeSectorId = safeChallenge.activeSectorId;
         const isMyTurn = !activeSectorId || safeRoles.some(r => r.id === activeSectorId);
 
-        // Para preguntas abiertas (free): los OTROS sectores validan, el activo responde en voz alta
+        // Para preguntas abiertas (free) o en fase de validación: los OTROS sectores validan
         // Para el resto: solo el sector activo puede responder
-        const isFreeQuestion = challengeType === 'free';
-        const canVoteNow = isFreeQuestion ? !isMyTurn : isMyTurn; // En free, votan los que NO son el activo
+        const isFreeQuestion = challengeType === 'free' || challengeType === 'validate';
+        const canVoteNow = isFreeQuestion ? !isMyTurn : isMyTurn;
 
         if (serverGameState?.state === 'ended') {
             return (
@@ -301,6 +305,25 @@ export default function MobileController({
                     <Recycle className="w-10 h-10 text-[#d6d3d1] mx-auto mb-3" style={{ animation: 'spin 10s linear infinite' }} />
                     <p className="font-bold text-[#a8a29e] text-sm">Esperando el siguiente anillo...</p>
                     <p className="text-xs text-[#d6d3d1] mt-2 font-medium">Las demás secciones toman su decisión.</p>
+                </motion.div>
+            );
+        }
+
+        if (!canVoteNow) {
+            return (
+                <motion.div
+                    key="waiting-turn"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center p-8 border-4 border-dashed border-[#e7e5e4] rounded-[2.5rem] bg-white"
+                >
+                    <Recycle className="w-10 h-10 text-[#d6d3d1] mx-auto mb-3" style={{ animation: 'spin 10s linear infinite' }} />
+                    <p className="font-bold text-[#a8a29e] text-sm">
+                        {isFreeQuestion ? 'Responde en voz alta' : 'Esperando el siguiente anillo...'}
+                    </p>
+                    <p className="text-xs text-[#d6d3d1] mt-2 font-medium">
+                        {isFreeQuestion ? 'Tus compañeros evaluarán tu respuesta.' : 'El sector activo toma su decisión.'}
+                    </p>
                 </motion.div>
             );
         }
@@ -437,7 +460,8 @@ export default function MobileController({
                             Evalúa a tus compañeros
                         </p>
                         <div className="bg-[#f5f5f4] border-2 border-dashed border-[#d6d3d1] rounded-2xl p-4 mb-4 text-sm font-bold italic text-[#44403c] leading-relaxed">
-                            "{safeChallenge.proposal ?? 'El sector ha propuesto una medida...'}"
+                            "{['valid', 'invalid', 'partial'].includes(safeChallenge.proposal) ? 'Respuesta hablada en proceso...' : (safeChallenge.proposal ?? 'El sector ha propuesto una medida...')}"
+
                             {safeChallenge.proposerName && (
                                 <div className="mt-2 text-right not-italic text-[10px] text-[#a8a29e] uppercase tracking-wider">
                                     — Propuesta de {safeChallenge.proposerName}
