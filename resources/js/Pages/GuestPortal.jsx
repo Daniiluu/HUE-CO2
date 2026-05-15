@@ -156,9 +156,17 @@ export default function GuestPortal({ pin = null }) {
             try {
                 const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
                 // Llamar al servidor para que reparta los roles y arranque el primer turno.
-                // El lock en GameFlowService garantiza que solo se ejecuta una vez.
                 await axios.post(`/api/game/${cleanCode}/advance`);
-                navigateTo('playing');
+                
+                // IMPORTANTE: El anfitrión ahora también navega a la URL oficial del tablero
+                router.visit(`/tablero/${cleanCode}`, {
+                    method: 'get',
+                    data: {
+                        playerName: myPlayerName,
+                        participantId: myParticipantId,
+                        isHost: true // Informamos al tablero que somos el host
+                    }
+                });
             } catch (error) {
                 console.error('[HUE-CO2] Error al iniciar partida online:', error);
                 alert("No se pudo iniciar la partida. Revisa la conexión del servidor.");

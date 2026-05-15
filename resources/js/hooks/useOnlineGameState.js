@@ -51,14 +51,23 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     const activeParticipanteId = activeSectorInChallenge?.participanteId;
     
     const isMyTurn = useMemo(() => {
-        // En modo online puro, comparamos IDs numéricos
-        if (activeParticipanteId && myParticipantId) {
-            return Number(activeParticipanteId) === Number(myParticipantId);
+        const activePID = Number(activeParticipanteId);
+        const myPID = Number(myParticipantId);
+        
+        // 1. Prioridad absoluta al ID numérico (Evita colisiones de nombres como "Jugador" vs "Jugador")
+        if (activePID && myPID) {
+            return activePID === myPID;
         }
-        // Fallback por nombre (para anfitrión o casos legacy)
+        
+        // 2. Fallback por nombre normalizado (para anfitrión o casos donde el ID no llegó)
+        const normalizedActive = normalize(activePlayerNameRaw);
+        const normalizedMe = normalize(myPlayerName);
+        
+        if (!normalizedActive || !normalizedMe || normalizedActive === 'esperando...') return false;
+        
         return (
-            normalize(activePlayerNameRaw) === normalize(myPlayerName) ||
-            (normalize(myPlayerName) === 'anfitrion' && normalize(activePlayerNameRaw) === 'anfitrion')
+            normalizedActive === normalizedMe ||
+            (normalizedMe === 'anfitrion' && normalizedActive === 'anfitrion')
         );
     }, [activeParticipanteId, myParticipantId, activePlayerNameRaw, myPlayerName]);
 
