@@ -28,6 +28,8 @@ export default function LocalDisplayBoard({
     const { votes, proposal, isConnected, gameState: remoteState, sendVote } = useGameChannel(roomCode, 'host', myPlayerName || 'Host', myParticipantId);
     const [activeChallenge, setActiveChallenge] = useState(challenge);
     const advancingRef = useRef(false);
+    const dismissedChallengeRef = useRef(null); // ID del reto que ya hemos cerrado
+
 
     // 2. Variables derivadas (Calculadas en cada render)
     const isLocalGame = roomCode && roomCode.startsWith('LOCAL_');
@@ -73,7 +75,8 @@ export default function LocalDisplayBoard({
         }
     }, [remoteState]);
 
-    const [localFeedback, setLocalFeedback] = useState(null); // 'correct' | 'incorrect' | null
+    const [localFeedback, setLocalFeedback] = useState(null); // 'correct' | 'incorrect' | 'partial' | null
+
     // Para preguntas abiertas en modo local: null → 'evaluating'
     const [freePhase, setFreePhase] = useState(null); // null | 'evaluating'
 
@@ -88,15 +91,23 @@ export default function LocalDisplayBoard({
     useEffect(() => {
         // Solo evaluar votos si estamos en fase de juego/reto y no tenemos feedback aún
         if (!activeChallenge || localFeedback !== null) return;
+        if (dismissedChallengeRef.current === activeChallenge.id) return;
         if (currentGameState !== 'challenge' && currentGameState !== 'playing') return;
 
-        if (isFreeQuestion && freePhase === 'evaluating') {
+        if (isFreeQuestion) {
             // Si es pregunta abierta y alguien ha validado (valid, partial, invalid)
             const validationVote = Object.values(votes).find(v => ['valid', 'partial', 'invalid'].includes(v));
             if (validationVote) {
-                const isCorrect = (validationVote === 'valid');
-                setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
-                setFreePhase(null);
+                // Mapeamos el resultado: valid -> correct, partial -> partial, invalid -> incorrect
+                const result = validationVote === 'valid' ? 'correct' : (validationVote === 'partial' ? 'partial' : 'incorrect');
+                setLocalFeedback(result);
+                
+                // Actualización inmediata del termómetro local
+                if (validationVote === 'valid') {
+                    setIntensity(prev => Math.max(0, prev - 0.1));
+                } else if (validationVote === 'invalid') {
+                    setIntensity(prev => prev + 0.1);
+                }
             }
         } else if (activeChallenge.type === 'options' || activeChallenge.type === 'slider') {
             // Si es pregunta normal y el sector activo ha votado
@@ -105,25 +116,32 @@ export default function LocalDisplayBoard({
                 let isCorrect = false;
                 if (activeChallenge.type === 'options' && activeChallenge.options) {
                     const correctOption = activeChallenge.correct_answer || activeChallenge.options[0];
-                    isCorrect = (activeVote === correctOption);
+                    isCorrect = (String(activeVote).trim().toLowerCase() === String(correctOption).trim().toLowerCase());
                 } else if (activeChallenge.type === 'slider') {
                     const diff = Math.abs(Number(activeVote) - Number(activeChallenge.correct_answer || 50));
-                    isCorrect = (diff <= 5); // Margen de error (igual que en backend)
+                    isCorrect = (diff <= 5);
                 }
                 setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
+                
+                if (isCorrect) {
+                    setIntensity(prev => Math.max(0, prev - 0.1));
+                } else {
+                    setIntensity(prev => prev + 0.1);
+                }
             }
         }
-    }, [votes, activeChallenge, localFeedback, isFreeQuestion, freePhase, activeSectorId, currentGameState]);
+    }, [votes, activeChallenge, localFeedback, isFreeQuestion, activeSectorId, currentGameState]);
 
     // Efecto 2: Fallback por si nos perdemos el voto pero llega el cambio de estado a 'results'
     // NO hay auto-avance: el host debe pulsar "Siguiente Pregunta" manualmente.
     useEffect(() => {
-        if (currentGameState === 'results' && localFeedback === null) {
+        if (currentGameState === 'results' && localFeedback === null && dismissedChallengeRef.current !== activeChallenge?.id) {
             const isCorrect = remoteState?.lastTurnCorrect ?? false;
             setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
             if (isFreeQuestion) setFreePhase(null);
         }
-    }, [currentGameState, remoteState?.lastTurnCorrect, localFeedback, isFreeQuestion]);
+    }, [currentGameState, remoteState?.lastTurnCorrect, localFeedback, isFreeQuestion, activeChallenge?.id]);
+
 
     const handleAdvance = async () => {
         // Evitar doble llamada al backend
@@ -404,9 +422,15 @@ export default function LocalDisplayBoard({
                     <FeedbackOverlay 
                         isCorrect={localFeedback === 'correct'}
                         onNext={async () => {
+                            // Al cerrar, marcamos este reto como procesado para que no vuelva a saltar
+                            // por culpa de un mensaje tardío de WebSocket o Polling
+                            if (activeChallenge?.id) {
+                                dismissedChallengeRef.current = activeChallenge.id;
+                            }
                             setLocalFeedback(null);
                             await handleAdvance();
                         }}
+
                     />
                 )}
             </AnimatePresence>

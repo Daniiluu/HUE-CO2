@@ -27,12 +27,17 @@ class GameFlowService
             $turnResults = $this->processTurnResults($juego);
             
             $acierto = collect($turnResults)->where('correct', true)->count() > 0;
-            \Illuminate\Support\Facades\Cache::put('juego_'.$juego->juego_id.'_last_correct', $acierto, 3600);
+            $mensaje = collect($turnResults)->pluck('message')->first() ?? '';
+            
+            $lastResult = $acierto ? 'correct' : 'incorrect';
+            \Illuminate\Support\Facades\Cache::put('juego_'.$juego->juego_id.'_last_result', $lastResult, 3600);
+            \Illuminate\Support\Facades\Cache::put('juego_'.$juego->juego_id.'_last_message', $mensaje, 3600);
 
             $juego->estado = 'results';
             
             // Verificación de límite de temperatura (GameOver crítico)
-            if ($juego->temperatura >= 1.0) {
+            // Usamos 0.99 para evitar errores de precisión de punto flotante
+            if ($juego->temperatura >= 0.99) {
                 $juego->estado = 'ended';
             }
 
@@ -40,12 +45,15 @@ class GameFlowService
         });
 
         // IMPORTANTE: El broadcast se hace FUERA de la transacción para evitar bloqueos de DB
+
         // mientras se espera a que el servidor de sockets responda.
         $duration = round((microtime(true) - $startTime) * 1000, 2);
         \Log::info("[PERF] Transacción completada. Duración: {$duration}ms. Enviando broadcast...");
         
-        $this->broadcastState($juego, $turnResults, ($juego->estado === 'ended' ? 'defeat' : null));
+        $outcome = $juego->estado === 'ended' ? $this->calculateOutcome($juego) : null;
+        $this->broadcastState($juego, $turnResults, $outcome);
     }
+
 
     /**
      * Avanza el estado del juego al siguiente reto (results -> playing).
@@ -76,13 +84,14 @@ class GameFlowService
                 $turnResults = $this->processTurnResults($juego);
                 $juego->estado = 'results';
 
-                if ($juego->temperatura >= 1.0) {
+                if ($juego->temperatura >= 0.99) {
                     $juego->estado = 'ended';
-                    $outcome = 'defeat';
+                    $outcome = $this->calculateOutcome($juego);
                 }
                 $juego->save();
                 return;
             }
+
 
             // ── FASE B: Preparar el Siguiente Reto ───────────────────────────
             if ($juego->current_turn === 0) {
@@ -129,12 +138,16 @@ class GameFlowService
         return $juego;
     }
 
-    private function calculateOutcome(Juego $juego): string
+    /**
+     * Calcula el resultado final del juego basado en la temperatura.
+     */
+    public function calculateOutcome(Juego $juego): string
     {
-        if ($juego->temperatura >= 1.0) return 'defeat';
-        if ($juego->temperatura >= 0.5) return 'neutral';
-        return 'victory';
+        if ($juego->temperatura >= 0.99) return 'defeat';
+        if ($juego->temperatura <= 0.0) return 'victory';
+        return 'neutral';
     }
+
 
     protected function initializeParticipantRoles(Juego $juego)
     {
@@ -241,24 +254,28 @@ class GameFlowService
         $activeRol = DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
         $activeSectorSlug = $activeRol ? $activeRol->slug : null;
 
+        // OPTIMIZACIÓN: Cargar todos los turnos del juego una sola vez para evitar N+1
+        $allTurns = DB::table('turnos')
+            ->join('cartas', 'turnos.carta_id', '=', 'cartas.carta_id')
+            ->where('turnos.juego_id', $juego->juego_id)
+            ->select('turnos.participante_id', 'turnos.is_correct', 'cartas.anillo_id')
+            ->get()
+            ->groupBy('participante_id');
+
         $sectorsData = DB::table('juego_participante')
             ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
             ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
             ->where('juego_participante.juego_id', $juego->juego_id)
             ->select('participantes.usuario', 'juego_participante.participante_id', 'roles.slug', 'juego_participante.eco_fichas', 'juego_participante.puntuacion')
             ->get()
-            ->map(function ($row) use ($juego) {
-                // Calcular qué anillos ha completado este participante
-                $turns = DB::table('turnos')
-                    ->join('cartas', 'turnos.carta_id', '=', 'cartas.carta_id')
-                    ->where('turnos.juego_id', $juego->juego_id)
-                    ->where('turnos.participante_id', $row->participante_id)
-                    ->pluck('turnos.is_correct', 'cartas.anillo_id')
-                    ->toArray();
+            ->map(function ($row) use ($juego, $allTurns) {
+                // Usar los turnos pre-cargados
+                $playerTurns = $allTurns->get($row->participante_id, collect());
+                $mappedTurns = $playerTurns->pluck('is_correct', 'anillo_id')->toArray();
 
                 $ringResults = [];
                 for ($i = 1; $i <= 5; $i++) {
-                    $ringResults[] = isset($turns[$i]) ? (bool)$turns[$i] : false;
+                    $ringResults[] = isset($mappedTurns[$i]) ? (bool)$mappedTurns[$i] : false;
                 }
 
                 return [
@@ -270,6 +287,7 @@ class GameFlowService
                     'ringResults' => $ringResults,
                 ];
             })->toArray();
+
 
         $carta = Carta::find($juego->current_carta_id);
         $challengeData = $this->formatChallenge($carta, $juego);
@@ -292,9 +310,10 @@ class GameFlowService
                 $juego->temperatura,
                 $juego->total_calentamiento,
                 $juego->total_reduccion,
-                \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
+                \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_result', 'incorrect'),
+                \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_message', ''),
                 $outcome,
-                microtime(true) // Enviar timestamp del servidor para medir latencia
+                microtime(true)
             );
         } catch (\Exception $e) {
             \Log::warning('[HUE-CO2] Error en broadcast: ' . $e->getMessage());

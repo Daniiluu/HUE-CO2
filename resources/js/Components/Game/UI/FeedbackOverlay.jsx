@@ -20,6 +20,18 @@ export default function FeedbackOverlay({ isCorrect, message, onNext }) {
         text: 'text-[#658437]',
         icon: 'text-[#87AF4C]',
         btn: 'bg-[#87AF4C] hover:bg-[#658437]',
+        hex: '#E2F1C3',
+        borderHex: '#87AF4C'
+    };
+
+    const partialColor = {
+        bg: 'bg-amber-100',
+        border: 'border-amber-500',
+        text: 'text-amber-800',
+        icon: 'text-amber-500',
+        btn: 'bg-amber-500 hover:bg-amber-600',
+        hex: '#FEF3C7',
+        borderHex: '#F59E0B'
     };
 
     const errorColor = {
@@ -28,9 +40,16 @@ export default function FeedbackOverlay({ isCorrect, message, onNext }) {
         text: 'text-[#D00000]',
         icon: 'text-[#D00000]',
         btn: 'bg-[#D00000] hover:bg-[#a00000]',
+        hex: '#FFC2C2',
+        borderHex: '#D00000'
     };
 
-    const colors = isCorrect ? successColor : errorColor;
+    const getTheme = () => {
+        if (isCorrect === 'partial') return partialColor;
+        return isCorrect ? successColor : errorColor;
+    };
+
+    const theme = getTheme();
 
     return (
         <motion.div 
@@ -46,29 +65,34 @@ export default function FeedbackOverlay({ isCorrect, message, onNext }) {
                 animate={{ scale: 1, y: 0 }}
                 className="relative p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-6 border-8"
                 style={{ 
-                    backgroundColor: isCorrect ? '#E2F1C3' : '#FFC2C2', 
-                    borderColor: isCorrect ? '#87AF4C' : '#D00000',
+                    backgroundColor: theme.hex, 
+                    borderColor: theme.borderHex,
                     zIndex: 10001,
                     transform: 'translateZ(0)',
                     backfaceVisibility: 'hidden'
                 }}
             >
                 <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-inner">
-                    {isCorrect ? (
-                        <CheckCircle2 className={`w-16 h-16 ${colors.icon}`} />
+                    {isCorrect === 'partial' ? (
+                        <Minus className={`w-16 h-16 ${theme.icon}`} />
+                    ) : (isCorrect === 'correct' || isCorrect === true ? (
+                        <CheckCircle2 className={`w-16 h-16 ${theme.icon}`} />
                     ) : (
-                        <X className={`w-16 h-16 ${colors.icon}`} />
-                    )}
+                        <X className={`w-16 h-16 ${theme.icon}`} />
+                    ))}
+
                 </div>
 
                 <div className="text-center">
-                    <h1 className={`text-5xl font-black uppercase tracking-tighter ${colors.text}`}>
-                        {isCorrect ? '¡Correcto!' : '¡Casi!'}
+                    <h1 className={`text-5xl font-black uppercase tracking-tighter ${theme.text}`}>
+                        {isCorrect === 'partial' ? '¡Parcial!' : (isCorrect === 'correct' || isCorrect === true ? '¡Correcto!' : '¡Casi!')}
                     </h1>
-                    <p className={`mt-1 text-sm font-black uppercase tracking-widest opacity-70 ${colors.text}`}>
-                        {message || (isCorrect ? '+1 PUNTO PARA EL SECTOR' : '+0.1°C A LA TEMPERATURA')}
+                    <p className={`mt-1 text-sm font-black uppercase tracking-widest opacity-70 ${theme.text}`}>
+                        {message || (isCorrect === 'partial' ? '+0.5 PUNTOS PARA EL SECTOR' : (isCorrect === 'correct' || isCorrect === true ? '+1 PUNTO PARA EL SECTOR' : '+0.1°C A LA TEMPERATURA'))}
                     </p>
                 </div>
+
+
 
                 {/* Botón "Siguiente Pregunta" — solo en modo local (cuando se pasa onNext) */}
                 {onNext && (

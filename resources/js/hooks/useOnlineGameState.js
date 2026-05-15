@@ -127,6 +127,8 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         }
     }, [currentChallenge?.id, serverGameState?.state, myPlayerName, roomCode, isActuallyHost]);
 
+    const [lastMessage, setLastMessage] = useState('');
+
     // Resetear estados locales cuando cambia el reto, el turno O el estado del juego
     useEffect(() => {
         if (currentChallenge?.id || serverGameState?.turnNumber || serverGameState?.state) {
@@ -134,14 +136,28 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             if (serverGameState?.state === 'challenge' || serverGameState?.state === 'playing') {
                 setVotedChallengeId(null);
                 setLastFeedback(null);
+                setLastMessage('');
                 setIsSending(false);
             }
+            
+            // Si el estado es 'results' y no tenemos feedback local, lo cogemos del servidor
+            if (serverGameState?.state === 'results' && lastFeedback === null) {
+                setLastFeedback(serverGameState.lastTurnResult || 'incorrect');
+                setLastMessage(serverGameState.lastTurnMessage || '');
+            }
         }
-    }, [currentChallenge?.id, serverGameState?.turnNumber, serverGameState?.state]);
+    }, [currentChallenge?.id, serverGameState?.turnNumber, serverGameState?.state, serverGameState?.lastTurnResult, serverGameState?.lastTurnMessage, lastFeedback]);
 
     // 5. Acciones
     const handleVote = async (answer) => {
-        if (hasVoted || !isMyTurn || isSending) return;
+        const challengeType = currentChallenge?.type || 'options';
+        const isFreeOrValidate = challengeType === 'free' || challengeType === 'open' || challengeType === 'validate';
+
+        // En preguntas abiertas/validación: los NO activos validan (isMyTurn=false pueden votar)
+        // En preguntas normales: solo el activo puede votar
+        const canVote = isFreeOrValidate ? !isMyTurn : isMyTurn;
+
+        if (hasVoted || !canVote || isSending) return;
         setIsSending(true);
 
         let cleanAnswer = answer;
@@ -158,7 +174,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
                 sector_id: currentChallenge?.activeSectorId,
                 player_name: myPlayerName || 'Jugador Online',
                 answer: cleanAnswer,
-                type: currentChallenge?.type || 'options',
+                type: challengeType,
                 participant_id: myParticipantId 
             });
             
@@ -166,7 +182,9 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             setLastFeedback(response.data.is_correct);
 
             // Si es online puro (sin LocalDisplayBoard manejando el avance), avanzamos el turno.
-            if (!roomCode.startsWith('LOCAL_')) {
+            // Para preguntas free/open: NO disparamos advance desde aquí — el backend lo hace
+            // automáticamente cuando llegan TODOS los votos de validación.
+            if (!roomCode.startsWith('LOCAL_') && challengeType !== 'free' && challengeType !== 'open') {
                 setTimeout(() => {
                     axios.post(`/api/game/${cleanRoomCode}/advance`).catch(e => console.error(e));
                 }, 2500);
@@ -195,7 +213,9 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         activePlayerName: activePlayerNameRaw || 'esperando...',
         lastFeedback,
         setLastFeedback,
+        lastMessage,
         serverChat,
+
         localMessages,
         setLocalMessages,
         sendChatMessage,

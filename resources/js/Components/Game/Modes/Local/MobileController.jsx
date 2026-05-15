@@ -5,8 +5,9 @@ import {
     Users, Zap, Droplets, Cpu, Shirt, Landmark, FlaskConical,
     AlertTriangle, Send, HeartHandshake, CheckCircle2, Clock,
     ChevronRight, Recycle, ShieldCheck, Star, Hexagon, Heart, Moon,
-    CheckCircle, Minus, X
+    CheckCircle, Minus, X, Award
 } from 'lucide-react';
+
 import { useGameChannel } from '../../../../hooks/useGameChannel';
 
 // ─── Constantes Estáticas ────────────────────────────────────────────────────
@@ -174,6 +175,31 @@ export default function MobileController({
         // Para el resto: solo el sector activo puede responder
         const isFreeQuestion = challengeType === 'free';
         const canVoteNow = isFreeQuestion ? !isMyTurn : isMyTurn; // En free, votan los que NO son el activo
+
+        if (serverGameState?.state === 'ended') {
+            return (
+                <motion.div
+                    key="game-ended"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-[#1c1917] text-white border-4 border-[#1c1917] rounded-[2.5rem] p-10 text-center shadow-2xl"
+                >
+                    <Award className="w-20 h-20 text-[#87AF4C] mx-auto mb-6" />
+                    <h2 className="text-3xl font-black mb-4 uppercase tracking-tighter">Partida Finalizada</h2>
+                    <p className="text-[#a8a29e] font-bold mb-8 uppercase tracking-widest text-sm leading-relaxed">
+                        Mira el tablero principal para ver el destino del planeta.
+                    </p>
+                    
+                    <button
+                        onClick={() => window.location.href = '/'}
+                        className="w-full py-4 bg-[#87AF4C] hover:bg-[#769a42] text-white rounded-2xl font-black text-lg shadow-[0_6px_0_0_#5f7b35] active:shadow-none active:translate-y-1 transition-all"
+                    >
+                        Volver al Inicio
+                    </button>
+                </motion.div>
+
+            );
+        }
 
         if (!canVoteNow && localGameState !== 'voted') {
             // Mensaje especial para el sector activo en pregunta abierta

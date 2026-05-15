@@ -128,35 +128,27 @@ export default function ChallengeCard({
 
     const renderOpen = () => (
         <div className="flex flex-col flex-1 h-full pb-2">
+            {/* Si NO es readOnly, significa que es el turno del jugador de INTERACTUAR (votar) */}
+            {/* En preguntas abiertas, el que 'interactúa' es el validador, no el que habla */}
             {!readOnly ? (
+                renderValidate()
+            ) : (
                 <div className="flex-1 flex flex-col justify-center items-center">
                     <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-6 text-center text-amber-800 shadow-inner w-full">
-                        <span className="text-3xl mb-4 block">🎤</span>
+                        <span className="text-3xl mb-4 block animate-pulse">🎤</span>
                         <h4 className="font-black uppercase tracking-widest text-sm mb-2">Tu turno de hablar</h4>
                         <p className="font-medium text-sm">
-                            Responde a la pregunta en voz alta frente al grupo. Cuando hayas terminado, pulsa el botón inferior.
+                            Responde a la pregunta en voz alta frente al grupo.
                         </p>
                     </div>
-                    <button 
-                        onClick={() => onApply?.('oral_response')}
-                        className={`mt-auto w-full text-white font-black py-4 rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 ${c.base}`}
-                    >
-                        <CheckCircle2 size={20} /> Terminé de responder
-                    </button>
-                </div>
-            ) : (
-                <div className="flex-1 mt-4 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-white/50 rounded-2xl p-6 text-center">
-                    <span className="text-3xl mb-4 block animate-bounce">🗣️</span>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[11px] mb-2">
-                        Escucha con atención
-                    </p>
-                    <p className="text-slate-500 font-medium text-sm">
-                        El jugador activo está respondiendo en voz alta...
-                    </p>
+                    <div className="text-slate-400 font-bold uppercase tracking-widest text-[10px] text-center">
+                        Los demás sectores evaluarán tu respuesta
+                    </div>
                 </div>
             )}
         </div>
     );
+
 
     const renderSlider = () => (
         <div className="flex flex-col flex-1 items-center justify-center pb-4">
@@ -213,10 +205,11 @@ export default function ChallengeCard({
                     {ringConfig.icon}
                 </div>
                 <p className="text-slate-700 font-bold italic text-sm leading-relaxed mt-1 text-center">
-                    {challenge.proposal === 'oral_response' 
-                        ? '🗣️ El jugador ha respondido en voz alta. ¿Qué opina el grupo de su respuesta?' 
+                    {challenge.type === 'free' || challenge.type === 'open' || challenge.proposal === 'oral_response' 
+                        ? '🗣️ El jugador está respondiendo en voz alta. ¿Cómo valoras su propuesta?' 
                         : `"${challenge.proposal ?? 'El sector propone una medida. Evalúala...'}"`}
                 </p>
+
             </div>
 
             <p className="text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.2em] mb-4">
@@ -253,7 +246,14 @@ export default function ChallengeCard({
         </div>
     );
 
-    const RENDERERS = { options: renderOptionsGrid, open: renderOpen, slider: renderSlider, validate: renderValidate };
+    const RENDERERS = { 
+        options: renderOptionsGrid, 
+        open: renderOpen, 
+        free: renderOpen, // Mismo comportamiento para ambos
+        slider: renderSlider, 
+        validate: renderValidate 
+    };
+
 
     return (
         <motion.div 

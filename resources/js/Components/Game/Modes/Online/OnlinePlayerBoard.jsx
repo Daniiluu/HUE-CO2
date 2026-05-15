@@ -51,9 +51,10 @@ export default function OnlinePlayerBoard({
     const {
         isConnected, serverGameState, currentChallenge, isMyTurn, hasVoted,
         myAssignedRoles, activePlayerName, lastFeedback, setLastFeedback,
-        serverChat, localMessages, setLocalMessages, sendChatMessage,
+        lastMessage, serverChat, localMessages, setLocalMessages, sendChatMessage,
         handleVote, resetMando, isActivePlayerInactive
     } = useOnlineGameState(roomCode, myPlayerName, challenge, sectors, myParticipantId, initialTimeLeft);
+
 
     // Calcular el turno relativo (1-6) dentro del anillo actual
     const relativeTurn = ((turnNumber - 1) % 6) + 1;
@@ -91,8 +92,11 @@ export default function OnlinePlayerBoard({
     return (
         <div className="h-screen w-full bg-[#f8fafc] flex flex-col font-sans overflow-hidden relative">
             <AnimatePresence>
-                {hasVoted && lastFeedback !== null && <FeedbackOverlay isCorrect={lastFeedback} />}
+                {(hasVoted || serverGameState?.state === 'results') && lastFeedback !== null && (
+                    <FeedbackOverlay isCorrect={lastFeedback} message={lastMessage} />
+                )}
             </AnimatePresence>
+
 
             {/* HEADER */}
             <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-slate-200 z-50">
@@ -141,9 +145,20 @@ export default function OnlinePlayerBoard({
                         onApply={handleVote}
                         sectorColor={currentDisplayRole?.color || 'blue'}
                         isCompact={true}
-                        readOnly={hasVoted || (currentChallenge?.type === 'validate' ? isMyTurn : !isMyTurn)}
+                        readOnly={hasVoted || (() => {
+                            const type = currentChallenge?.type;
+                            // Para preguntas abiertas (free/open): el activo responde en voz alta
+                            // → readOnly=true para el activo (no puede votar), false para los demás (validan)
+                            if (type === 'free' || type === 'open') return isMyTurn;
+                            // Para validación de propuesta: el activo NO vota, los demás sí
+                            if (type === 'validate') return isMyTurn;
+                            // Para options/slider: solo el activo puede interactuar
+                            return !isMyTurn;
+                        })()}
                     />
-                    {!isMyTurn && <TurnIndicator name={activePlayerName} />}
+                    {!isMyTurn && currentChallenge?.type !== 'free' && currentChallenge?.type !== 'open' && (
+                        <TurnIndicator name={activePlayerName} />
+                    )}
                 </div>
             </main>
 

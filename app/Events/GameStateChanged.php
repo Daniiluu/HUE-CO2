@@ -26,9 +26,11 @@ class GameStateChanged implements ShouldBroadcast
     public float  $temperature; // Temperatura global actual
     public float  $totalHeating; // Acumulado de calentamiento (+)
     public float  $totalReduction; // Acumulado de enfriamiento (-)
-    public bool   $lastTurnCorrect; // Indica si el último turno procesado fue correcto
+    public string $lastTurnResult; // 'correct' | 'incorrect' | 'partial'
+    public string $lastTurnMessage; // Mensaje descriptivo del resultado
     public ?float $serverTime; // Timestamp para medir latencia
     public ?string $outcome; // 'victory' | 'neutral' | 'defeat' | null
+
 
     public function __construct(
         string $roomCode,
@@ -40,10 +42,12 @@ class GameStateChanged implements ShouldBroadcast
         float  $temperature = 0.0,
         float  $totalHeating = 0.0,
         float  $totalReduction = 0.0,
-        bool   $lastTurnCorrect = false,
+        string $lastTurnResult = 'incorrect',
+        string $lastTurnMessage = '',
         ?string $outcome = null,
         ?float $serverTime = null
     ) {
+
         $this->roomCode   = $roomCode;
         $this->state      = $state;
         $this->challenge  = $challenge;
@@ -51,10 +55,12 @@ class GameStateChanged implements ShouldBroadcast
         $this->timeLeft   = $timeLeft;
         $this->turnNumber = $turnNumber;
         $this->temperature = $temperature;
-        $this->totalHeating = $totalHeating;
+        $this->totalHeating   = $totalHeating;
         $this->totalReduction = $totalReduction;
-        $this->lastTurnCorrect = $lastTurnCorrect;
-        $this->outcome = $outcome;
+        $this->lastTurnResult  = $lastTurnResult;
+        $this->lastTurnMessage = $lastTurnMessage;
+        $this->outcome        = $outcome;
+
         $this->serverTime = $serverTime;
     }
 
