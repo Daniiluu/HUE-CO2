@@ -38,7 +38,7 @@ export default function TestBoards() {
                 <GameBoard 
                     gameMode={mode} 
                     roomCode="TEST-772"
-                    myRole={{ id: 'tech', name: 'Gigantes Tech', iconName: 'Cpu' }}
+                    myRole={{ id: 'tech', name: 'EcoTech', iconName: 'Cpu' }}
                 />
             ) : (
                 <div className="pt-20 flex flex-col items-center gap-4 pb-10">

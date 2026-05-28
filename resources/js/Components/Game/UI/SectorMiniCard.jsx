@@ -10,7 +10,7 @@ Recibe como props el sector y el indice.
 const getRoleIcon = (iconName, id) => {
     if (id === 'tech') return <Cpu className="w-full h-full" strokeWidth={2.5} />;
     if (id === 'primario') return <Tractor className="w-full h-full" strokeWidth={2.5} />;
-    if (id === 'publico') return <Landmark className="w-full h-full" strokeWidth={2.5} />;
+    if (id === 'legislativo') return <Landmark className="w-full h-full" strokeWidth={2.5} />;
 
     switch (iconName) {
         case 'Shirt': return <Shirt className="w-full h-full" strokeWidth={2.5} />;
@@ -25,7 +25,7 @@ export default function SectorMiniCard({ sector, index, isActive = false }) {
     const figmaColors = {
         'ciencia': { bg: 'bg-[#DEB8FF]', shadow: 'shadow-[0px_4px_0px_0px_rgba(150,64,255,1.0)]', textTitle: 'text-purple-600', iconClass: 'text-[#9640FF]' },
         'primario': { bg: 'bg-[#E2F1C3]', shadow: 'shadow-[0px_4px_0px_0px_rgba(101,132,55,1.0)]', textTitle: 'text-lime-700', iconClass: 'text-[#658437]' },
-        'publico': { bg: 'bg-[#FFC2C2]', shadow: 'shadow-[0px_4px_0px_0px_rgba(208,0,0,1.0)]', textTitle: 'text-red-700', iconClass: 'text-[#D00000]' },
+        'legislativo': { bg: 'bg-[#FFC2C2]', shadow: 'shadow-[0px_4px_0px_0px_rgba(208,0,0,1.0)]', textTitle: 'text-red-700', iconClass: 'text-[#D00000]' },
         'tech': { bg: 'bg-[#D6D5FF]', shadow: 'shadow-[0px_4px_0px_0px_rgba(67,64,255,1.0)]', textTitle: 'text-indigo-600', iconClass: 'text-[#4340FF]' },
         'textil': { bg: 'bg-[#FFE4C4]', shadow: 'shadow-[0px_4px_0px_0px_rgba(255,163,64,1.0)]', textTitle: 'text-orange-500', iconClass: 'text-[#FFA340]' },
         'ciudadania': { bg: 'bg-[#FFC9F2]', shadow: 'shadow-[0px_4px_0px_0px_rgba(255,58,219,1.0)]', textTitle: 'text-fuchsia-500', iconClass: 'text-[#FF3ADB]' },

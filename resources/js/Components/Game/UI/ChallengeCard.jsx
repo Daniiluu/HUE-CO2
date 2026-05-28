@@ -6,34 +6,34 @@ import { Zap, Star, Hexagon, Heart, Moon, Droplet, Send, CheckCircle2, Minus, X,
 // Definidas fuera del componente para que no se recreen en cada render.
 
 const COLOR_MAP = {
-    violet:  { base: 'bg-violet-600',  text: 'text-violet-600',  outline: 'outline-violet-600',  gradient: 'from-violet-400/20 to-violet-700/0', focus: 'focus:border-violet-400',  sliderColor: '#7c3aed' },
+    violet: { base: 'bg-violet-600', text: 'text-violet-600', outline: 'outline-violet-600', gradient: 'from-violet-400/20 to-violet-700/0', focus: 'focus:border-violet-400', sliderColor: '#7c3aed' },
     emerald: { base: 'bg-emerald-600', text: 'text-emerald-600', outline: 'outline-emerald-600', gradient: 'from-emerald-400/20 to-emerald-700/0', focus: 'focus:border-emerald-400', sliderColor: '#059669' },
-    rose:    { base: 'bg-rose-600',    text: 'text-rose-600',    outline: 'outline-rose-600',    gradient: 'from-rose-400/20 to-rose-700/0',    focus: 'focus:border-rose-400',    sliderColor: '#e11d48' },
-    blue:    { base: 'bg-blue-600',    text: 'text-blue-600',    outline: 'outline-blue-600',    gradient: 'from-blue-400/20 to-cyan-700/0',    focus: 'focus:border-blue-400',    sliderColor: '#2563eb' },
-    indigo:  { base: 'bg-indigo-600',  text: 'text-indigo-600',  outline: 'outline-indigo-600',  gradient: 'from-indigo-400/20 to-indigo-700/0', focus: 'focus:border-indigo-400',  sliderColor: '#4f46e5' },
+    rose: { base: 'bg-rose-600', text: 'text-rose-600', outline: 'outline-rose-600', gradient: 'from-rose-400/20 to-rose-700/0', focus: 'focus:border-rose-400', sliderColor: '#e11d48' },
+    blue: { base: 'bg-blue-600', text: 'text-blue-600', outline: 'outline-blue-600', gradient: 'from-blue-400/20 to-cyan-700/0', focus: 'focus:border-blue-400', sliderColor: '#2563eb' },
+    indigo: { base: 'bg-indigo-600', text: 'text-indigo-600', outline: 'outline-indigo-600', gradient: 'from-indigo-400/20 to-indigo-700/0', focus: 'focus:border-indigo-400', sliderColor: '#4f46e5' },
     fuchsia: { base: 'bg-fuchsia-600', text: 'text-fuchsia-600', outline: 'outline-fuchsia-600', gradient: 'from-fuchsia-400/20 to-fuchsia-700/0', focus: 'focus:border-fuchsia-400', sliderColor: '#c026d3' },
-    amber:   { base: 'bg-amber-500',   text: 'text-amber-600',   outline: 'outline-amber-500',   gradient: 'from-amber-400/20 to-amber-700/0',   focus: 'focus:border-amber-400',   sliderColor: '#f59e0b' },
+    amber: { base: 'bg-amber-500', text: 'text-amber-600', outline: 'outline-amber-500', gradient: 'from-amber-400/20 to-amber-700/0', focus: 'focus:border-amber-400', sliderColor: '#f59e0b' },
 };
 
 const OPTION_STYLES = [
-    { light: 'bg-rose-500',    dark: 'bg-rose-700',    borderDark: 'border-rose-700',    icon: <Star    fill="white" size={24} color="white" /> },
-    { light: 'bg-amber-400',   dark: 'bg-amber-700',   borderDark: 'border-amber-700',   icon: <Hexagon fill="white" size={24} color="white" /> },
-    { light: 'bg-emerald-500', dark: 'bg-emerald-700', borderDark: 'border-emerald-700', icon: <Heart   fill="white" size={24} color="white" /> },
-    { light: 'bg-blue-500',    dark: 'bg-blue-700',    borderDark: 'border-blue-700',    icon: <Moon    fill="white" size={24} color="white" /> },
+    { light: 'bg-rose-500', dark: 'bg-rose-700', borderDark: 'border-rose-700', icon: <Star fill="white" size={24} color="white" /> },
+    { light: 'bg-amber-400', dark: 'bg-amber-700', borderDark: 'border-amber-700', icon: <Hexagon fill="white" size={24} color="white" /> },
+    { light: 'bg-emerald-500', dark: 'bg-emerald-700', borderDark: 'border-emerald-700', icon: <Heart fill="white" size={24} color="white" /> },
+    { light: 'bg-blue-500', dark: 'bg-blue-700', borderDark: 'border-blue-700', icon: <Moon fill="white" size={24} color="white" /> },
 ];
 
 const VALIDATE_OPTIONS = [
-    { key: 'valid',   icon: <CheckCircle2 size={20} />, label: 'Es Válida',              active: 'bg-emerald-50 border-emerald-500 text-emerald-700', hover: 'hover:border-emerald-300 hover:text-emerald-600' },
-    { key: 'partial', icon: <Minus size={20} />,        label: 'Incompleta / Discutible', active: 'bg-amber-50 border-amber-500 text-amber-800',       hover: 'hover:border-amber-300 hover:text-amber-600' },
-    { key: 'invalid', icon: <X size={20} />,             label: 'Es Incorrecta',           active: 'bg-rose-50 border-rose-500 text-rose-800',          hover: 'hover:border-rose-300 hover:text-rose-600' },
+    { key: 'valid', icon: <CheckCircle2 size={20} />, label: 'Es Válida', active: 'bg-emerald-50 border-emerald-500 text-emerald-700', hover: 'hover:border-emerald-300 hover:text-emerald-600' },
+    { key: 'partial', icon: <Minus size={20} />, label: 'Incompleta / Discutible', active: 'bg-amber-50 border-amber-500 text-amber-800', hover: 'hover:border-amber-300 hover:text-amber-600' },
+    { key: 'invalid', icon: <X size={20} />, label: 'Es Incorrecta', active: 'bg-rose-50 border-rose-500 text-rose-800', hover: 'hover:border-rose-300 hover:text-rose-600' },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function ChallengeCard({ 
-    challenge = {}, 
-    intensity = 50, 
-    setIntensity, 
-    onApply, 
+export default function ChallengeCard({
+    challenge = {},
+    intensity = 50,
+    setIntensity,
+    onApply,
     readOnly = false,
     sectorColor = 'blue',
     isCompact = false,
@@ -47,7 +47,7 @@ export default function ChallengeCard({
     React.useEffect(() => {
         setSelectedAnswer(null);
         setProposalText('');
-        
+
         // Autocorregir slider si está fuera de rango
         if (challenge?.type === 'slider') {
             const min = challenge.sliderMin ?? 0;
@@ -60,13 +60,13 @@ export default function ChallengeCard({
 
     if (!challenge || Object.keys(challenge).length === 0) {
         return (
-            <div className={`${isCompact ? 'w-[20vw] h-[55vh]' : 'w-[24vw] lg:w-[22vw] h-[65vh]'} bg-white rounded-[2rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 text-center shrink-0`}>
+            <div className={`${isCompact ? 'w-[310px] min-w-[280px] max-w-full h-[68vh] min-h-[500px]' : 'w-[380px] min-w-[360px] max-w-full h-[70vh] min-h-[560px] max-h-[660px]'} bg-white rounded-[2rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 text-center shrink-0`}>
                 <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
                     <Clock className="w-10 h-10 text-slate-300" />
                 </div>
                 <h3 className="text-xl font-black text-slate-400 uppercase tracking-widest mb-2">Esperando Reto</h3>
                 <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                    Sincronizando con el servidor...<br/>El primer desafío aparecerá en unos instantes.
+                    Sincronizando con el servidor...<br />El primer desafío aparecerá en unos instantes.
                 </p>
             </div>
         );
@@ -77,6 +77,13 @@ export default function ChallengeCard({
     const ringId = challenge?.anillo_id || challenge?.anilloId;
 
     const getRingConfig = () => {
+        if (challenge?.isEvent) {
+            return {
+                color: COLOR_MAP.rose,
+                icon: <Zap className="animate-pulse text-yellow-400 fill-yellow-400" size={20} strokeWidth={2.5} />,
+                label: '🚨 CRISIS CLIMÁTICA 🚨'
+            };
+        }
         if (ringName.includes('agua') || ringId == 1) {
             return { color: COLOR_MAP.blue, icon: <Droplet size={20} strokeWidth={2.5} />, label: 'ANILLO DEL AGUA' };
         }
@@ -100,29 +107,48 @@ export default function ChallengeCard({
     const c = ringConfig.color;
     const challengeType = challenge.type ?? 'options'; // options | open | slider | validate
 
+    const visibleOptions = React.useMemo(() => {
+        if (!challenge.options) return [];
+        if (!challenge.is5050Active || readOnly || !challenge.correct_answer) return challenge.options;
+
+        const correct = challenge.correct_answer;
+        const incorrect = challenge.options.filter(o => String(o).trim().toLowerCase() !== String(correct).trim().toLowerCase());
+
+        // Queremos un 50-50 real (1 correcta, 1 incorrecta) o al menos quitar la mitad de las malas.
+        const keepCount = Math.max(1, Math.floor(incorrect.length / 2));
+        // Usamos una semilla basada en el ID para que no cambie al re-renderizar
+        const seed = challenge.id || 1;
+        const keepIncorrect = incorrect.filter((_, i) => (i + seed) % 2 === 0).slice(0, keepCount);
+
+        return challenge.options.filter(o =>
+            String(o).trim().toLowerCase() === String(correct).trim().toLowerCase() || keepIncorrect.includes(o)
+        );
+    }, [challenge.options, challenge.is5050Active, readOnly, challenge.correct_answer, challenge.id]);
+
     const renderOptionsGrid = () => (
         <div className="flex flex-col h-full mt-auto pb-2">
             <div className={`grid grid-cols-2 ${isCompact ? 'gap-x-2 gap-y-2' : 'gap-x-3 gap-y-4'} w-full flex-grow`}>
-                {challenge.options?.map((opt, idx) => {
-                    const originalStyle = OPTION_STYLES[idx];
+                {visibleOptions.map((opt, idx) => {
+                    const originalIndex = challenge.options?.indexOf(opt) ?? idx;
+                    const originalStyle = OPTION_STYLES[originalIndex % OPTION_STYLES.length];
                     // Mantener los iconos originales (Estrella, Hexágono, etc.)
                     const style = originalStyle;
                     const isSelected = selectedAnswer === opt;
                     return (
-                        <div 
+                        <div
                             key={idx}
                             onClick={() => !readOnly && setSelectedAnswer(opt)}
-                            className={`relative flex flex-col min-h-[110px] w-full group transition-transform ${readOnly ? '' : 'cursor-pointer active:scale-95'}`}
+                            className={`relative flex flex-col h-auto ${isCompact ? 'min-h-[75px]' : 'min-h-[90px] md:min-h-[100px]'} w-full group transition-transform ${readOnly ? '' : 'cursor-pointer active:scale-95'}`}
                         >
                             <div className={`absolute inset-0 top-1.5 rounded-xl ${style.dark} ${isSelected ? 'ring-4 ring-indigo-200' : ''}`} />
-                            <div className={`relative flex flex-col h-[calc(100%-6px)] z-10 w-full drop-shadow-sm ${isSelected ? '-translate-y-1' : ''} transition-all`}>
+                            <div className={`relative flex flex-col ${isCompact ? 'min-h-[70px]' : 'min-h-[84px] md:min-h-[94px]'} h-full z-10 w-full drop-shadow-sm ${isSelected ? '-translate-y-1' : ''} transition-all`}>
                                 <div className={`${isCompact ? 'h-[35px]' : 'h-[45px]'} w-full ${style.light} rounded-t-xl border-b border-[0.83px] ${style.borderDark} flex items-center justify-center`}>
                                     <div className="w-8 h-8 bg-white/30 rounded-full flex items-center justify-center flex-shrink-0 shadow-inner">
                                         {style.icon}
                                     </div>
                                 </div>
-                                <div className="flex-1 bg-stone-100 rounded-b-xl border-x border-b border-gray-300 px-2 py-1.5 flex items-center justify-center group-hover:bg-white transition-colors">
-                                    <span className="text-stone-500 text-[9px] md:text-[10px] font-semibold text-center leading-snug line-clamp-3">
+                                <div className="flex-1 bg-stone-100 rounded-b-xl border-x border-b border-gray-300 px-1.5 py-2 flex items-center justify-center group-hover:bg-white transition-colors">
+                                    <span className="text-stone-600 text-[8.5px] sm:text-[9.5px] md:text-[10px] font-extrabold text-center leading-normal">
                                         {opt}
                                     </span>
                                 </div>
@@ -132,7 +158,7 @@ export default function ChallengeCard({
                 })}
             </div>
             {!readOnly && (
-                <button 
+                <button
                     onClick={() => onApply?.(selectedAnswer)}
                     disabled={!selectedAnswer}
                     className={`mt-4 w-full py-3 rounded-xl font-bold uppercase tracking-widest text-white shadow-lg transition-all ${selectedAnswer ? `${c.base} active:scale-95` : 'bg-slate-300 cursor-not-allowed'}`}
@@ -147,27 +173,27 @@ export default function ChallengeCard({
         <div className="flex flex-col flex-1 h-full pb-2">
             {!readOnly ? (
                 <div className="flex-1 flex flex-col justify-center items-center gap-4">
-                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center text-amber-800 shadow-inner w-full">
-                        <span className="text-3xl mb-2 block">🎤</span>
-                        <h4 className="font-black uppercase tracking-widest text-sm mb-1">Tu turno de hablar</h4>
-                        <p className="font-medium text-[11px] leading-tight">
-                            {isOnline 
-                                ? "Responde en voz alta y escribe un resumen para que el grupo pueda votarte." 
-                                : "Responde a la pregunta en voz alta frente al grupo."}
-                        </p>
-                    </div>
+                    {!isOnline && (
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center text-amber-800 shadow-inner w-full">
+                            <span className="text-3xl mb-2 block">🎤</span>
+                            <h4 className="font-black uppercase tracking-widest text-sm mb-1">Tu turno de hablar</h4>
+                            <p className="font-medium text-[11px] leading-tight">
+                                Responde a la pregunta en voz alta frente al grupo.
+                            </p>
+                        </div>
+                    )}
 
                     {isOnline && (
                         <textarea
                             value={proposalText}
                             onChange={(e) => setProposalText(e.target.value)}
                             placeholder="Escribe aquí el resumen de tu respuesta..."
-                            rows={3}
-                            className="w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-amber-400 resize-none bg-white shadow-sm"
+                            rows={4}
+                            className="w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-amber-400 resize-none bg-white shadow-sm flex-1 min-h-[120px]"
                         />
                     )}
 
-                    <button 
+                    <button
                         onClick={() => {
                             if (isOnline && onProposal) {
                                 onProposal(proposalText.trim());
@@ -198,7 +224,7 @@ export default function ChallengeCard({
 
     const renderSlider = () => (
         <div className="flex flex-col flex-1 items-center justify-center pb-4">
-            <motion.div 
+            <motion.div
                 initial={{ scale: 0.8 }}
                 animate={{ scale: 1 }}
                 key={intensity}
@@ -251,8 +277,8 @@ export default function ChallengeCard({
                     {ringConfig.icon}
                 </div>
                 <p className="text-slate-700 font-bold italic text-sm leading-relaxed mt-1 text-center">
-                    {challenge.type === 'free' || challenge.type === 'open' || challenge.proposal === 'oral_response' 
-                        ? '🗣️ El jugador está respondiendo en voz alta. ¿Cómo valoras su propuesta?' 
+                    {challenge.type === 'free' || challenge.type === 'open' || challenge.proposal === 'oral_response'
+                        ? '🗣️ El jugador está respondiendo en voz alta. ¿Cómo valoras su propuesta?'
                         : `"${challenge.proposal ?? 'El sector propone una medida. Evalúala...'}"`}
                 </p>
 
@@ -261,11 +287,11 @@ export default function ChallengeCard({
             <p className="text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.2em] mb-4">
                 ¿Es esta medida viable y realista?
             </p>
-            
+
             {!readOnly ? (
                 <div className="space-y-3 mt-auto">
                     {VALIDATE_OPTIONS.map(({ key, icon, label, active, hover }) => (
-                        <button 
+                        <button
                             key={key}
                             onClick={() => setSelectedAnswer(key)}
                             className={`w-full border-[2.5px] py-3.5 rounded-2xl flex items-center justify-center gap-3 font-black transition-all shadow-sm active:scale-95
@@ -274,7 +300,7 @@ export default function ChallengeCard({
                             {icon} {label}
                         </button>
                     ))}
-                    <button 
+                    <button
                         onClick={() => onApply?.(selectedAnswer)}
                         disabled={!selectedAnswer}
                         className={`w-full py-3 mt-4 rounded-xl font-bold uppercase tracking-widest text-white shadow-lg transition-all ${selectedAnswer ? `${c.base} active:scale-95` : 'bg-slate-300 cursor-not-allowed'}`}
@@ -292,33 +318,35 @@ export default function ChallengeCard({
         </div>
     );
 
-    const RENDERERS = { 
-        options: renderOptionsGrid, 
-        open: renderOpen, 
+    const RENDERERS = {
+        options: renderOptionsGrid,
+        open: renderOpen,
         free: renderOpen, // Mismo comportamiento para ambos
-        slider: renderSlider, 
-        validate: renderValidate 
+        slider: renderSlider,
+        validate: renderValidate
     };
 
 
+    const isEvent = !!challenge?.isEvent;
+
     return (
-        <motion.div 
+        <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`${isCompact ? 'w-[20vw] h-[55vh]' : 'w-[24vw] lg:w-[22vw] h-[65vh]'} relative shrink-0`}
+            className={`${isCompact ? 'w-[310px] min-w-[280px] max-w-full h-[68vh] min-h-[500px]' : 'w-[380px] min-w-[360px] max-w-full h-[70vh] min-h-[560px] max-h-[660px]'} relative shrink-0 ${isEvent ? 'animate-pulse' : ''}`}
         >
             {/* Sombra 3D */}
-            <div className={`absolute inset-0 top-[10px] ${c.base} rounded-[2rem]`} />
+            <div className={`absolute inset-0 top-[10px] ${c.base} rounded-[2rem] ${isEvent ? 'shadow-[0_0_30px_rgba(225,29,72,0.6)]' : ''}`} />
 
             {/* Tarjeta Principal */}
-            <div className={`absolute inset-0 h-[calc(100%-10px)] bg-white rounded-[2rem] outline outline-[2.5px] outline-offset-[-2.5px] ${c.outline} flex flex-col p-6 overflow-hidden`}>
-                <div className={`absolute bg-gradient-to-b ${c.gradient} inset-0 pointer-events-none rounded-[2rem] z-0`} />
+            <div className={`absolute inset-0 h-[calc(100%-10px)] bg-white rounded-[2rem] outline outline-[3px] outline-offset-[-3px] ${isEvent ? 'outline-rose-600 shadow-[inset_0_0_20px_rgba(225,29,72,0.15)]' : c.outline} flex flex-col ${isCompact ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5 md:p-6'} overflow-hidden`}>
+                <div className={`absolute bg-gradient-to-b ${isEvent ? 'from-rose-500/10 to-red-600/5' : c.gradient} inset-0 pointer-events-none rounded-[2rem] z-0`} />
 
                 <div className="relative z-10 flex flex-col h-full">
                     {/* Header */}
                     <div className={`flex items-center justify-between ${isCompact ? 'mb-3' : 'mb-5'}`}>
                         <div className={`flex items-center gap-2 ${c.text} font-bold text-sm uppercase tracking-wider`}>
-                            {ringConfig.icon} 
+                            {ringConfig.icon}
                             {ringConfig.label}
                         </div>
                         <div className="px-2.5 py-1 bg-neutral-100 rounded-md border border-stone-200">
@@ -329,19 +357,25 @@ export default function ChallengeCard({
                     </div>
 
                     {/* Título y Descripción */}
-                    <div className={`flex flex-col gap-2 ${challengeType === 'slider' ? (isCompact ? 'mb-4' : 'mb-8') : (isCompact ? 'mb-2' : 'mb-4')}`}>
-                        <h2 className={`${isCompact ? 'text-[18px]' : 'text-[22px]'} text-slate-900 font-black tracking-tight leading-none`}>
-                            {challenge.title ?? 'Título del Desafío'}
-                        </h2>
-                        {challenge.description && challenge.description !== challenge.title && (
-                            <p className={`text-slate-500 font-medium leading-relaxed ${challengeType === 'validate' || challengeType === 'options' ? 'text-[12px]' : 'text-sm'}`}>
-                                {challenge.description}
-                            </p>
+                    <div className={`flex flex-col gap-2.5 ${challengeType === 'slider' ? (isCompact ? 'mb-4' : 'mb-8') : (isCompact ? 'mb-2' : 'mb-4')}`}>
+                        {challenge.description && challenge.description !== challenge.title ? (
+                            <>
+                                <h2 className={`${isCompact ? 'text-[15px]' : 'text-[18px]'} ${isEvent ? 'text-rose-700' : 'text-slate-900'} font-black tracking-tight leading-snug`}>
+                                    {challenge.description}
+                                </h2>
+                                <p className={`${isCompact ? 'text-[11.5px]' : 'text-[13.5px]'} ${isEvent ? 'text-rose-600 font-semibold' : 'text-slate-500 font-semibold'} tracking-tight leading-relaxed`}>
+                                    {challenge.title}
+                                </p>
+                            </>
+                        ) : (
+                            <h2 className={`${isCompact ? 'text-[16px]' : 'text-[19px]'} ${isEvent ? 'text-rose-700' : 'text-slate-900'} font-black tracking-tight leading-snug`}>
+                                {challenge.title ?? 'Título del Desafío'}
+                            </h2>
                         )}
                     </div>
 
                     {/* Contenido Dinámico */}
-                    <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 select-none scrollbar-thin">
                         {(RENDERERS[challengeType] ?? RENDERERS.options)()}
                     </div>
                 </div>

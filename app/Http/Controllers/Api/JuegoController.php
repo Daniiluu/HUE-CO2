@@ -156,6 +156,15 @@ class JuegoController extends Controller
         $existingParticipante = $existingQuery->first();
 
         if ($existingParticipante) {
+            // Si es un invitado anónimo, verificar si realmente es una reconexión o un secuestro
+            if (!$request->user() && $existingParticipante->pivot && $existingParticipante->pivot->last_seen_at) {
+                $lastSeen = \Carbon\Carbon::parse($existingParticipante->pivot->last_seen_at);
+                // Si el jugador anónimo ha estado activo en los últimos 30 segundos, asumimos que alguien más intenta usurpar el nombre
+                if ($lastSeen->diffInSeconds(now()) < 30) {
+                    return response()->json(['error' => 'Ese nombre de usuario ya está en uso en esta sala y se encuentra activo.'], 403);
+                }
+            }
+
             // Actualizar last_seen_at al reconectarse
             $juego->participantes()->updateExistingPivot($existingParticipante->participante_id, [
                 'last_seen_at' => now()
@@ -166,6 +175,10 @@ class JuegoController extends Controller
                 'participante' => $existingParticipante,
                 'juego'   => $juego->load('participantes'),
             ]);
+        }
+
+        if ($juego->estado !== 'lobby') {
+            return response()->json(['error' => 'La partida ya ha comenzado. Solo se permiten reconexiones.'], 403);
         }
 
         // Verificar si la sala ya está llena ANTES de crear al participante
@@ -194,6 +207,43 @@ class JuegoController extends Controller
             'message' => 'Te has unido a la partida',
             'participante' => $participante,
             'juego'   => $juego->load('participantes'),
+        ]);
+    }
+
+    /**
+     * Obtiene los detalles de una partida finalizada para mostrar en el historial.
+     */
+    public function historyDetails($id)
+    {
+        $juego = Juego::findOrFail($id);
+
+        $sectors = \DB::table('juego_participante')
+            ->join('participantes', 'juego_participante.participante_id', '=', 'participantes.participante_id')
+            ->leftJoin('roles', 'juego_participante.rol_id', '=', 'roles.rol_id')
+            ->where('juego_participante.juego_id', $id)
+            ->select(
+                'participantes.usuario as playerName',
+                'roles.slug as id',
+                'roles.nombre as role',
+                'juego_participante.eco_fichas as tokens',
+                'juego_participante.puntuacion as points'
+            )
+            ->get();
+
+        $outcome = 'neutral';
+        if ($juego->temperatura >= 0.99) {
+            $outcome = 'defeat';
+        } elseif ($juego->temperatura <= 0.0) {
+            $outcome = 'victory';
+        }
+
+        return response()->json([
+            'juego_id' => $juego->juego_id,
+            'outcome' => $outcome,
+            'temperature' => (float)$juego->temperatura,
+            'totalHeating' => (float)$juego->total_calentamiento,
+            'totalReduction' => (float)$juego->total_reduccion,
+            'sectors' => $sectors
         ]);
     }
 }

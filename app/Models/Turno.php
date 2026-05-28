@@ -8,7 +8,7 @@ class Turno extends Model
 {
     protected $primaryKey = 'turno_id';
 
-    protected $fillable = ['juego_id', 'participante_id', 'carta_id', 'resultado', 'cambio_temp'];
+    protected $fillable = ['juego_id', 'participante_id', 'carta_id', 'resultado', 'cambio_temp', 'is_correct'];
 
     public function juego()
     {

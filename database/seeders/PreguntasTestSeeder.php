@@ -63,7 +63,7 @@ class PreguntasTestSeeder extends Seeder
                 'anillo_id' => $p['anillo_id'],
                 'tipo' => 'pregunta',
                 'texto' => $p['texto'],
-                'tiempo' => 30,
+                'tiempo' => 45,
                 'puntos' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),

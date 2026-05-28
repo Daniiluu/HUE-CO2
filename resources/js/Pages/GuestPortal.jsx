@@ -280,6 +280,7 @@ export default function GuestPortal({ pin = null }) {
                     <ModeSelectionView 
                         key="select_mode" 
                         hideSolo={isOnlineMode}
+                        hideClass={isOnlineMode}
                         onBack={() => navigateTo('host_auth')} 
                         onSelectMode={handleSelectMode} 
                     />

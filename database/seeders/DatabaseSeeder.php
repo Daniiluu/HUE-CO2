@@ -16,13 +16,15 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Crear Usuario Admin para pruebas
-        User::factory()->create([
-            'name' => 'Admin HUE',
-            'username' => 'admin',
-            'email' => 'admin@hue.com',
-            'password' => bcrypt('password'),
-            'role' => 'admin',
-        ]);
+        User::updateOrCreate(
+            ['email' => 'admin@hue.com'],
+            [
+                'name' => 'Admin HUE',
+                'username' => 'admin',
+                'password' => bcrypt('password'),
+                'role' => 'admin',
+            ]
+        );
 
         $this->call([
             AnillosSeeder::class,

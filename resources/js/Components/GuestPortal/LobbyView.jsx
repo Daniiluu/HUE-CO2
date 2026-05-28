@@ -181,7 +181,7 @@ export function LobbyView({ mode, onBack, onStartGame, selectedPlayers, setSelec
                 <ChevronLeft className="w-4 h-4" /> Atrás
             </button>
             <div className="mt-8">
-                {safeRoomCode && (
+                {safeRoomCode && mode !== 'solo' && (
                     <div className="mb-8 text-center bg-[#f5f5f4] p-6 rounded-3xl border-2 border-stone-200">
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 mb-2">Código de Sala</p>
                         <div className="text-5xl font-black tracking-[0.2em] text-[#1c1917] flex justify-center gap-2">

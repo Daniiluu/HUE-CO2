@@ -52,11 +52,15 @@ class PreguntaController extends Controller
         $anilloNombre = $carta?->anillo?->nombre ?? 'General';
 
         $challenge = [
-            'type'        => $tipo, // Mantener el tipo original de la BD (free, options, slider)
-            'title'       => $pregunta->texto,
-            'description' => $carta?->texto ?? 'Responde a este desafío medioambiental.',
-            'sectorName'  => $anilloNombre,
-            'time'        => $carta?->tiempo ?? 30,
+            'id'              => $pregunta->pregunta_id,
+            'type'            => $tipo, // Mantener el tipo original de la BD (free, options, slider)
+            'title'           => $pregunta->texto,
+            'description'     => $carta?->texto ?? 'Responde a este desafío medioambiental.',
+            'sectorName'      => $anilloNombre,
+            'time'            => $carta?->tiempo ?? 30,
+            'explicacion'     => $pregunta->explicacion,
+            'dinamica_grupo'  => $pregunta->dinamica_grupo,
+            'tiempo_dinamica' => $pregunta->tiempo_dinamica ?? 120,
         ];
 
         // Opciones ABCD
@@ -64,6 +68,7 @@ class PreguntaController extends Controller
             $challenge['options'] = $pregunta->opciones->pluck('texto')->toArray();
             $correctIndex = $pregunta->opciones->search(fn($o) => $o->correcta);
             $challenge['correctAnswer'] = $correctIndex !== false ? $correctIndex : null;
+            $challenge['correctAnswerText'] = $correctIndex !== false ? $pregunta->opciones[$correctIndex]->texto : null;
         }
 
         // Slider

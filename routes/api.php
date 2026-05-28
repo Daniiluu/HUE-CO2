@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\TurnoController;
 use App\Http\Controllers\Api\CartaController;
 use App\Http\Controllers\Api\ParticipanteController;
 use App\Http\Controllers\Api\PreguntaController;
+use App\Http\Controllers\Api\HabilidadController;
 use App\Http\Controllers\GameController;
 
 // ── Rutas públicas ──────────────────────────────────────────
@@ -49,6 +50,7 @@ Route::post('/game/{roomCode}/vote',     [GameController::class, 'vote']);
 Route::post('/game/{roomCode}/proposal', [GameController::class, 'proposal']);
 Route::post('/game/{roomCode}/chat',     [GameController::class, 'chat']);
 Route::post('/game/{roomCode}/advance',  [GameController::class, 'advance']);
+Route::post('/game/{roomCode}/habilidad', [HabilidadController::class, 'activar']);
 Route::get('/juego/{roomCode}/estado',   [GameController::class, 'estado']);
 Route::post('/game/{roomCode}/heartbeat', [GameController::class, 'heartbeat']);
 Route::post('/juegos/join',              [JuegoController::class, 'unirse'])->middleware('throttle:10,1');

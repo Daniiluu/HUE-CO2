@@ -58,7 +58,7 @@ export default function Register() {
                                 type="text"
                                 value={data.name}
                                 onChange={(e) => setData('name', e.target.value)}
-                                placeholder="Ej: CPIFP Los Enlaces"
+                                placeholder="Usuario"
                                 className={`w-full bg-[#f5f5f4] border-4 ${errors.name ? 'border-red-500' : 'border-[#e7e5e4]'} rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:outline-none focus:border-[#87AF4C] transition-colors`}
                                 required
                                 autoFocus

@@ -4,11 +4,12 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite",
+        "dev": "vite --host",
         "reverb": "docker exec hueco2-laravel.test-1 php artisan reverb:start",
         "start": "wsl docker compose up -d && docker exec -it hueco2-laravel.test-1 npm run dev",
         "build:docker": "docker exec hueco2-laravel.test-1 bash -c \"npm run build\"",
-        "stop": "wsl docker compose down"
+        "stop": "wsl docker compose down",
+        "tunnel": "npx localtunnel --port 8000"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",
@@ -28,6 +29,7 @@
     },
     "dependencies": {
         "@rollup/rollup-linux-x64-gnu": "^4.60.0",
+        "@rollup/rollup-win32-x64-msvc": "^4.60.4",
         "laravel-echo": "^2.3.0",
         "lucide-react": "^0.577.0",
         "motion": "^12.38.0",

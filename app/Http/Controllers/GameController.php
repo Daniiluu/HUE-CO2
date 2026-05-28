@@ -71,7 +71,9 @@ class GameController extends Controller
             if ($pregunta) {
                 $opcionCorrecta = $pregunta->opciones()->where('correcta', true)->first();
                 if ($opcionCorrecta) {
-                    $isCorrect = ($opcionCorrecta->texto === $validated['answer']);
+                    $valRecibida = trim((string) $validated['answer']);
+                    $valEsperada = trim((string) $opcionCorrecta->texto);
+                    $isCorrect = (strcasecmp($valRecibida, $valEsperada) === 0);
                     $feedbackMsg = $isCorrect 
                         ? "¡Correcto! Has ayudado a tu sector. 🎉" 
                         : "¡Casi! La respuesta correcta era: " . $opcionCorrecta->texto . " ❌";
@@ -238,25 +240,21 @@ class GameController extends Controller
                 'totalHeating' => $juego->total_calentamiento,
                 'totalReduction' => $juego->total_reduccion,
                 'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
-                'outcome' => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null,
+                'outcome' => ($juego->estado === 'ended') ? $this->gameFlow->calculateOutcome($juego) : null,
                 'hostId' => DB::table('juego_participante')->where('juego_id', $juego->juego_id)->orderBy('juego_jugador_id', 'asc')->value('participante_id')
             ]
         ]);
     }
 
-    private function calculateOutcome(Juego $juego): string
-    {
-        if ($juego->temperatura >= 1.0) return 'defeat';
-        if ($juego->temperatura >= 0.5) return 'neutral';
-        return 'victory';
-    }
 
     /**
      * Obtiene los datos formateados del reto actual para un juego.
      */
     private function getChallengeData(Juego $juego): ?array
     {
-        $carta = $juego->current_carta_id ? \App\Models\Carta::find($juego->current_carta_id) : null;
+        $carta = $juego->current_carta_id
+            ? \App\Models\Carta::with(['preguntas.opciones'])->find($juego->current_carta_id)
+            : null;
         if (!$carta) return null;
 
         $pregunta = $carta->preguntas->first();
@@ -278,11 +276,17 @@ class GameController extends Controller
             ])->whereNotNull('resultado')->value('resultado');
         }
 
+        $opcionCorrecta = $pregunta
+            ? ($pregunta->opciones->where('correcta', true)->first() ?? $pregunta->opciones->where('correcta', 1)->first())
+            : null;
+
         $challengeData = [
             'id' => $carta->carta_id,
             'type' => $propuestaActiva ? 'validate' : $tipoBase,
-            'title' => $pregunta ? $pregunta->texto : $carta->texto,
-            'description' => $pregunta ? '' : $carta->texto,
+            'title' => ($carta->tipo === 'evento') ? $carta->texto : ($pregunta ? $pregunta->texto : $carta->texto),
+            'description' => ($carta->tipo === 'evento')
+                ? ($pregunta ? $pregunta->texto : '')
+                : ($pregunta && $carta->texto !== $pregunta->texto ? $carta->texto : ''),
             'ring' => $juego->anillo ? $juego->anillo->nombre : 'General',
             'anillo_id' => $juego->anillo_id,
             'options' => $opciones,
@@ -293,9 +297,16 @@ class GameController extends Controller
             'sliderMin' => $pregunta && $pregunta->rango_min !== null ? $pregunta->rango_min : 0,
             'sliderMax' => $pregunta && $pregunta->rango_max !== null ? $pregunta->rango_max : 100,
             'unit' => ($pregunta && $pregunta->rango_max !== null && $pregunta->rango_max !== 100) ? '' : '%',
+            'correct_answer' => $opcionCorrecta ? $opcionCorrecta->texto : null,
+            'correctAnswerText' => $opcionCorrecta ? $opcionCorrecta->texto : null,
+            'isEvent' => ($carta->tipo === 'evento'),
+            'cambioTemp' => $carta->cambio_temp ?? 0,
+            // Campos de dinámica de grupo
+            'explicacion' => $pregunta ? $pregunta->explicacion : null,
+            'dinamica_grupo' => $pregunta ? $pregunta->dinamica_grupo : null,
+            'tiempo_dinamica' => ($pregunta && $pregunta->tiempo_dinamica !== null) ? $pregunta->tiempo_dinamica : 120,
         ];
 
-        
         $activeRol = \Illuminate\Support\Facades\DB::table('roles')->where('rol_id', $juego->current_rol_id)->first();
         $challengeData['activeSectorId'] = $activeRol ? $activeRol->slug : null;
 
@@ -402,7 +413,7 @@ class GameController extends Controller
             'totalReduction' => $juego->total_reduccion,
             'turnNumber'  => $juego->current_turn,
             'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
-            'outcome'     => ($juego->estado === 'ended') ? $this->calculateOutcome($juego) : null,
+            'outcome'     => ($juego->estado === 'ended') ? $this->gameFlow->calculateOutcome($juego) : null,
             'hostId'      => $hostId
         ]);
     }

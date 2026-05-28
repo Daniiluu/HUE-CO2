@@ -70,4 +70,26 @@ class GameStateChanged implements ShouldBroadcast
             new Channel("game.{$this->roomCode}"),
         ];
     }
+
+    /**
+     * Estructura explícitamente el payload JSON que se envía a Pusher.
+     * Esto unifica el formato exacto que consume el hook useGameChannel.js
+     */
+    public function broadcastWith(): array
+    {
+        return [
+            'state'          => $this->state,
+            'turnNumber'     => (int) $this->turnNumber,
+            'challenge'      => $this->challenge,
+            'sectors'        => $this->sectors,
+            'timeLeft'       => (int) $this->timeLeft,
+            'temperature'    => (float) $this->temperature,
+            'totalHeating'   => (float) $this->totalHeating,
+            'totalReduction' => (float) $this->totalReduction,
+            'lastTurnResult' => $this->lastTurnResult,
+            'lastTurnMessage'=> $this->lastTurnMessage,
+            'outcome'        => $this->outcome,
+            'serverTime'     => $this->serverTime,
+        ];
+    }
 }

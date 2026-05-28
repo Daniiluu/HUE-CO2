@@ -10,11 +10,12 @@ import GameClock from '../../UI/GameClock';
 import { ROLES } from '../../../../data/gameData';
 import { Sparkles, Info, Zap as ZapIcon } from 'lucide-react';
 import FeedbackOverlay from '../../UI/FeedbackOverlay';
+import { usePage } from '@inertiajs/react';
 
 const figmaColors = {
     'ciencia':    { bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', iconClass: 'text-[#9640FF]' },
     'primario':   { bg: 'bg-[#E2F1C3]', border: 'border-[#658437]', iconClass: 'text-[#658437]' },
-    'publico':    { bg: 'bg-[#FFC2C2]', border: 'border-[#D00000]', iconClass: 'text-[#D00000]' },
+    'legislativo': { bg: 'bg-[#FFC2C2]', border: 'border-[#D00000]', iconClass: 'text-[#D00000]' },
     'tech':       { bg: 'bg-[#D6D5FF]', border: 'border-[#4340FF]', iconClass: 'text-[#4340FF]' },
     'textil':     { bg: 'bg-[#FFE4C4]', border: 'border-[#FFA340]', iconClass: 'text-[#FFA340]' },
     'ciudadania': { bg: 'bg-[#FFC9F2]', border: 'border-[#FF3ADB]', iconClass: 'text-[#FF3ADB]' },
@@ -24,7 +25,7 @@ const getRoleIcon = (iconName, id) => {
     const icons = {
         tech: <Cpu className="w-full h-full" strokeWidth={2.5} />,
         primario: <Tractor className="w-full h-full" strokeWidth={2.5} />,
-        publico: <Landmark className="w-full h-full" strokeWidth={2.5} />,
+        legislativo: <Landmark className="w-full h-full" strokeWidth={2.5} />,
         Shirt: <Shirt className="w-full h-full" strokeWidth={2.5} />,
         FlaskConical: <FlaskConical className="w-full h-full" strokeWidth={2.5} />,
         Users: <Users className="w-full h-full" strokeWidth={2.5} />,
@@ -41,9 +42,10 @@ export default function OnlinePlayerBoard({
     turnNumber, 
     myRoles = [], 
     visualPhase = 1, 
-    initialTimeLeft = 30,
+    initialTimeLeft = 45,
     isHost = false
 }) {
+    const { props } = usePage();
     const { intensity, setIntensity, timeLeft } = useGame();
     const [chatInput, setChatInput] = useState('');
 
@@ -52,7 +54,7 @@ export default function OnlinePlayerBoard({
         isConnected, serverGameState, currentChallenge, isMyTurn, hasVoted,
         myAssignedRoles, activePlayerName, lastFeedback, setLastFeedback,
         lastMessage, serverChat, localMessages, setLocalMessages, sendChatMessage,
-        handleVote, handleProposal, resetMando, isActivePlayerInactive
+        handleVote, handleProposal, resetMando, isActivePlayerInactive, useAbility
     } = useOnlineGameState(roomCode, myPlayerName, challenge, sectors, myParticipantId, initialTimeLeft);
 
 
@@ -99,12 +101,33 @@ export default function OnlinePlayerBoard({
 
 
             {/* HEADER */}
-            <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-slate-200 z-50">
+            <header className="relative flex items-center justify-between px-8 py-4 bg-white border-b border-slate-200 z-50">
                 <div className="flex items-center gap-4">
                     <div className="bg-[#87AF4C]/10 text-[#87AF4C] px-4 py-2 rounded-2xl flex items-center gap-2 border border-[#87AF4C]/20">
                         <div className="w-2 h-2 rounded-full bg-[#87AF4C] animate-pulse" />
                         <span className="text-xs font-black uppercase tracking-widest">Sala: {roomCode}</span>
                     </div>
+                </div>
+
+                {/* Turno de Jugador en el centro */}
+                <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
+                    <motion.div 
+                        initial={{ opacity: 0, y: -10 }} 
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-[#1c1917] text-white shadow-md border border-stone-850"
+                    >
+                        <div className={`w-2 h-2 rounded-full ${isMyTurn ? 'bg-amber-400 animate-ping' : 'bg-[#87AF4C]'}`} />
+                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                            {isMyTurn ? (
+                                <span className="text-amber-400">🚨 ¡Es tu turno de responder!</span>
+                            ) : (
+                                <>
+                                    <span className="text-stone-400">Turno de:</span>
+                                    <span className="text-[#87AF4C]">{activePlayerName || '---'}</span>
+                                </>
+                            )}
+                        </span>
+                    </motion.div>
                 </div>
 
                 <div className="flex items-center gap-6">
@@ -113,7 +136,18 @@ export default function OnlinePlayerBoard({
                         onTimeout={() => handleVote(null)} 
                     />
 
-                    <button onClick={() => window.location.reload()} className="p-3 rounded-2xl bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all">
+                    <button 
+                        onClick={() => {
+                            if (window.confirm("¿Seguro que deseas salir de la partida? Perderás todo el progreso actual.")) {
+                                if (props.auth?.user) {
+                                    window.location.href = '/dashboard';
+                                } else {
+                                    window.location.href = '/jugar';
+                                }
+                            }
+                        }} 
+                        className="p-3 rounded-2xl bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                    >
                         <LogOut size={20} />
                     </button>
                 </div>
@@ -128,6 +162,7 @@ export default function OnlinePlayerBoard({
                         const serverSector = (serverGameState?.sectors || []).find(ss => ss.id === s.id);
                         return {
                             ...s,
+                            tokens: serverSector?.tokens ?? s.tokens,
                             points: serverSector?.points ?? s.points,
                             ringResults: serverSector?.ringResults ?? [],
                             isInactive: serverSector?.isInactive ?? false
@@ -158,15 +193,13 @@ export default function OnlinePlayerBoard({
                             return !isMyTurn;
                         })()}
                     />
-                    {!isMyTurn && currentChallenge?.type !== 'free' && currentChallenge?.type !== 'open' && (
-                        <TurnIndicator name={activePlayerName} />
-                    )}
+                    {/* El indicador de turno ha sido movido al Header para liberar espacio visual */}
                 </div>
             </main>
 
             {/* FOOTER & CHAT */}
             <footer className="w-full bg-slate-100 border-t border-slate-200 flex items-center h-[140px] px-4 gap-3">
-                <RoleInventory roles={myAssignedRoles} activeSectorId={currentChallenge?.activeSectorId} />
+                <RoleInventory roles={myAssignedRoles} activeSectorId={currentChallenge?.activeSectorId} onUseAbility={useAbility} isMyTurn={isMyTurn} />
                 <GameChat 
                     messages={allMessages} 
                     value={chatInput} 
@@ -193,30 +226,47 @@ function LobbyWaitingScreen({ roomCode }) {
     );
 }
 
-function TurnIndicator({ name }) {
-    return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute -bottom-6 left-0 right-0 text-center">
-            <span className="bg-[#1c1917] text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 mx-auto w-max">
-                <Users size={12} className="text-[#87AF4C]" /> Turno de: {name}
-            </span>
-        </motion.div>
-    );
-}
+// TurnIndicator eliminado (ahora integrado en el GameHeader centralizado)
 
-function RoleInventory({ roles, activeSectorId }) {
+function RoleInventory({ roles, activeSectorId, onUseAbility, isMyTurn }) {
     return (
         <div className="flex gap-2 overflow-x-auto h-full py-3 scrollbar-hide flex-1">
-            {roles.map(role => (
-                <div key={role.id} className={`flex items-center gap-3 px-4 py-2 rounded-2xl border-2 transition-all min-w-[180px] ${role.id === activeSectorId ? 'bg-white border-[#87AF4C] shadow-lg scale-105 z-10' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                    <div className={`w-10 h-10 p-2 rounded-xl bg-white shadow-sm ${figmaColors[role.id]?.iconClass}`}>
-                        {getRoleIcon(role.iconName, role.id)}
+            {roles.map(role => {
+                const canAfford = (role.tokens ?? 12) >= (role.activeCost ?? 99);
+                const canUse = canAfford && isMyTurn;
+                return (
+                    <div key={role.id} className={`flex flex-col gap-2 px-4 py-2 rounded-2xl border-2 transition-all min-w-[220px] ${role.id === activeSectorId ? 'bg-white border-[#87AF4C] shadow-lg scale-105 z-10' : 'bg-slate-50 border-slate-200 opacity-90'}`}>
+                        <div className="flex items-center gap-3 w-full">
+                            <div className={`w-10 h-10 p-2 rounded-xl bg-white shadow-sm flex items-center justify-center ${figmaColors[role.id]?.iconClass}`}>
+                                {getRoleIcon(role.iconName, role.id)}
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Tu Sector</span>
+                                <span className="text-[11px] font-black uppercase truncate text-slate-700">{role.name}</span>
+                            </div>
+                            {/* EcoTokens Counter Badge */}
+                            <div className="bg-[#1c1917] text-white px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-sm shrink-0">
+                                <ZapIcon className="w-3.5 h-3.5 fill-current text-amber-400" />
+                                <span className="font-black text-xs">{role.tokens ?? 12}</span>
+                            </div>
+                        </div>
+                        {/* Botón de Habilidad */}
+                        <button 
+                            onClick={() => canUse && onUseAbility(role.id)}
+                            disabled={!canUse}
+                            title={!isMyTurn ? 'Solo puedes usar habilidades en tu turno' : role.activeDesc}
+                            className={`mt-auto w-full py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 transition-all ${
+                                canUse 
+                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 hover:scale-[1.02] active:scale-95 shadow-sm' 
+                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            }`}
+                        >
+                            <Sparkles size={10} /> 
+                            {role.activeDesc?.split(':')[0] || 'Habilidad'} ({role.activeCost} ET)
+                        </button>
                     </div>
-                    <div className="flex flex-col min-w-0">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Tu Sector</span>
-                        <span className="text-[11px] font-black uppercase truncate text-slate-700">{role.name}</span>
-                    </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

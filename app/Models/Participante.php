@@ -20,7 +20,7 @@ class Participante extends Model
     public function juegos()
     {
         return $this->belongsToMany(Juego::class, 'juego_participante', 'participante_id', 'juego_id')
-                    ->withPivot('rol_id', 'eco_fichas', 'puntuacion')
+                    ->withPivot('rol_id', 'eco_fichas', 'puntuacion', 'last_seen_at')
                     ->withTimestamps();
     }
 

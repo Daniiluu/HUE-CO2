@@ -7,7 +7,7 @@ import {
 const SECTOR_CONFIG = {
     tech:       { color: '#4340FF', bg: 'bg-[#D6D5FF]', border: 'border-[#4340FF]', icon: <Database className="w-full h-full" strokeWidth={2.5} /> },
     primario:   { color: '#658437', bg: 'bg-[#E2F1C3]', border: 'border-[#658437]', icon: <Sprout className="w-full h-full" strokeWidth={2.5} /> },
-    publico:    { color: '#D00000', bg: 'bg-[#FFC2C2]', border: 'border-[#D00000]', icon: <Landmark className="w-full h-full" strokeWidth={2.5} /> },
+    legislativo: { color: '#D00000', bg: 'bg-[#FFC2C2]', border: 'border-[#D00000]', icon: <Landmark className="w-full h-full" strokeWidth={2.5} /> },
     textil:     { color: '#FFA340', bg: 'bg-[#FFE4C4]', border: 'border-[#FFA340]', icon: <Shirt className="w-full h-full" strokeWidth={2.5} /> },
     ciencia:    { color: '#9640FF', bg: 'bg-[#DEB8FF]', border: 'border-[#9640FF]', icon: <FlaskConical className="w-full h-full" strokeWidth={2.5} /> },
     ciudadania: { color: '#FF3ADB', bg: 'bg-[#FFC9F2]', border: 'border-[#FF3ADB]', icon: <Users className="w-full h-full" strokeWidth={2.5} /> },
@@ -27,7 +27,7 @@ export default function OrbitalBoard({ sectors, activeSectorId = null, visualPha
 
     // Ordenar sectores en sentido horario (Lógica oficial)
     // Público (Top) -> Ciudadanía -> Textil -> Ciencia -> Tech -> Primario
-    const CLOCKWISE_ORDER = ['publico', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
+    const CLOCKWISE_ORDER = ['legislativo', 'ciudadania', 'textil', 'ciencia', 'tech', 'primario'];
     const sortedSectors = [...sectors].sort((a, b) => {
         return CLOCKWISE_ORDER.indexOf(a.id) - CLOCKWISE_ORDER.indexOf(b.id);
     });

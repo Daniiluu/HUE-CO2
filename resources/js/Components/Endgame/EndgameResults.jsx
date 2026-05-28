@@ -72,7 +72,7 @@ export default function EndgameResults({
     // Stats por defecto si no hay reales
     const defaultSectors = [
         { id: 'ciudadania', name: 'Ciudadanía', role: 'Motor Social', icon: <Users />, border: 'border-violet-300', stat: '42 ET Generados', label: 'Máxima Energía', isMVP: true },
-        { id: 'tech', name: 'Gigantes Tech', role: 'El Analista', icon: <Cpu />, border: 'border-indigo-300', stat: '5 Crisis Evitadas', label: 'Mejor Prevención' },
+        { id: 'tech', name: 'EcoTech', role: 'El Analista', icon: <Cpu />, border: 'border-indigo-300', stat: '5 Crisis Evitadas', label: 'Mejor Prevención' },
         { id: 'ciencia', name: 'Ciencia e I+D', role: 'El Innovador', icon: <Lightbulb />, border: 'border-cyan-300', stat: '3 Anillos Liderados', label: 'Gran Innovador' },
     ];
     

@@ -10,9 +10,24 @@ import Pusher from 'pusher-js';
 
 window.Pusher = Pusher;
 
-// Solo inicializar Echo/Reverb si la clave está configurada.
+// Determinar qué driver de transmisión usar (pusher o reverb)
+const broadcastConnection = import.meta.env.VITE_BROADCAST_CONNECTION || 'reverb';
 const reverbKey = import.meta.env.VITE_REVERB_APP_KEY;
-if (reverbKey) {
+const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+
+if (broadcastConnection === 'pusher' && pusherKey) {
+    window.Echo = new Echo({
+        broadcaster: 'pusher',
+        key: pusherKey,
+        cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'eu',
+        forceTLS: true,
+        enabledTransports: ['ws', 'wss'],
+        activityTimeout: 10000,
+        pongTimeout: 5000,
+        unavailable_timeout: 2000,
+    });
+    console.log('[HUE-CO2] Echo inicializado con Pusher en la nube.');
+} else if (reverbKey) {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     if (isLocal) {
@@ -24,18 +39,20 @@ if (reverbKey) {
             wssPort: import.meta.env.VITE_REVERB_PORT || 8080,
             forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https',
             enabledTransports: ['ws', 'wss'],
-            activityTimeout: 10000, 
+            activityTimeout: 10000,
             pongTimeout: 5000,
-            unavailable_timeout: 2000, 
+            unavailable_timeout: 2000,
         });
+        console.log('[HUE-CO2] Echo inicializado con Reverb local.');
     } else {
-        // En Ngrok desactivamos Echo para evitar errores rojos en consola.
-        // useGameChannel.js usará polling automáticamente.
+        // En túneles locales (como Ngrok) sin HTTPS real o en hosts no locales sin clave
         window.Echo = null;
+        console.info('[HUE-CO2] Entorno de desarrollo no local detected. Echo desactivado, se usará polling.');
     }
-    
-    // Silenciar logs de Pusher en producción/desarrollo para no saturar la consola
-    Pusher.logToConsole = false; 
 } else {
-    console.info('[HUE-CO2] Reverb no configurado — modo offline/local.');
+    console.info('[HUE-CO2] Transmisión no configurada o claves ausentes — modo offline/local.');
 }
+
+// Silenciar logs de Pusher en producción/desarrollo para no saturar la consola
+Pusher.logToConsole = false;
+

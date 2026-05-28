@@ -9,9 +9,9 @@ import LocalDisplayBoard from './Modes/Local/LocalDisplayBoard';
 import OnlinePlayerBoard from './Modes/Online/OnlinePlayerBoard';
 import EndgameResults from '../Endgame/EndgameResults';
 
-export function GameBoard({ 
-    players: activePlayers, 
-    onEnd, 
+export function GameBoard({
+    players: activePlayers,
+    onEnd,
     myRoles = [],
     myPlayerName,
     myParticipantId,
@@ -25,16 +25,23 @@ export function GameBoard({
     const [currentChallenge, setCurrentChallenge] = useState({});
     const [turnNumber, setTurnNumber] = useState(0);
     const [isLoadingChallenge, setIsLoadingChallenge] = useState(false);
-    const [initialTimeLeft, setInitialTimeLeft] = useState(30);
+    const [initialTimeLeft, setInitialTimeLeft] = useState(45);
     const [endData, setEndData] = useState(null);
 
     // ── WebSocket: Escuchar el estado global del juego ────────────────────────
-    const { gameState: serverGameState, votes } = useGameChannel(roomCode, 'host', 'Host');
+    const { gameState: serverGameState, votes, setGameState } = useGameChannel(roomCode, 'host', 'Host');
 
     useEffect(() => {
         if (serverGameState) {
+            // MEDIDA ANTIFRAUDE / PROTECCIÓN DE TURNO ANTERIOR:
+            // Si el evento del socket trae un número de turno menor al que ya procesamos localmente, lo ignoramos.
+            if (turnNumber > 0 && serverGameState.turnNumber < turnNumber) {
+                console.log(`[DEBUG-PERF] Ignorando evento WebSocket desfasado del turno ${serverGameState.turnNumber}`);
+                return;
+            }
+
             console.log(`[DEBUG-PERF] GameBoard detectó cambio de estado a: [${serverGameState.state}] a las ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`);
-            
+
             if (serverGameState.state === 'challenge' || serverGameState.state === 'playing' || serverGameState.state === 'results') {
                 setCurrentChallenge(serverGameState.challenge);
                 setTurnNumber(serverGameState.turnNumber);
@@ -54,11 +61,10 @@ export function GameBoard({
                 onEnd?.(finalData);
             }
         }
-    }, [serverGameState]);
+    }, [serverGameState, turnNumber, onEnd]);
     // ─────────────────────────────────────────────────────────────────────────
 
     // ── Detectar si es un juego local (sin BD) ─────────────────────────────
-    // Combinamos la prop isLocal con la detección del roomCode LOCAL_
     const isLocalGame = isLocalProp || (roomCode && roomCode.startsWith('LOCAL_'));
 
     // ── Carga de retos desde el servidor (avanzar turno) ─────────────────────
@@ -66,19 +72,25 @@ export function GameBoard({
         setIsLoadingChallenge(true);
         let response = null;
         try {
-            // Si hay roomCode y NO empieza por LOCAL_ manual, usamos el backend para sincronizar móviles
-            // (Incluso en modo isLocalGame, si hay un PIN de sala, necesitamos que el servidor gestione el estado)
             if (roomCode && !roomCode.startsWith('LOCAL_')) {
                 const cleanCode = (roomCode || '').toString().replace(/\s/g, '');
                 response = await axios.post(`/api/game/${cleanCode}/advance`);
-                
+
                 if (response.data && response.data.gameState) {
                     const { state, challenge, turnNumber: newTurn, sectors: newSectors, outcome, temperature } = response.data.gameState;
+
+                    // ACTUALIZACIÓN DE UI OPTIMISTA INMEDIATA:
+                    // Forzamos la sincronización de estados locales antes de que cualquier polling o socket interfiera
                     if (state === 'challenge' || state === 'playing' || state === 'results') {
                         setCurrentChallenge(challenge);
                         setTurnNumber(newTurn);
                         if (newSectors) setSectorsState(newSectors);
                         setEndData(null);
+
+                        // Sincronizar el estado del propio hook de sockets para alinearlo al nuevo turno
+                        if (typeof setGameState === 'function') {
+                            setGameState(response.data.gameState);
+                        }
                     } else if (state === 'ended') {
                         const finalData = {
                             outcome: outcome || 'neutral',
@@ -104,12 +116,11 @@ export function GameBoard({
         } finally {
             setIsLoadingChallenge(false);
         }
-    }, [roomCode, isLocalGame, onEnd]);
+    }, [roomCode, isLocalGame, onEnd, setGameState]);
 
     // Al montar, si es juego LOCAL PURO (sin código de sala) pedimos el primer reto.
-    // En modo online o con sala LOCAL_, el advance ya fue llamado por el anfitrión.
     useEffect(() => {
-        const isPureLocal = !roomCode; // Solo si NO hay roomCode en absoluto
+        const isPureLocal = !roomCode;
         if (isPureLocal && (!currentChallenge || Object.keys(currentChallenge).length === 0)) {
             nextChallenge();
         }
@@ -147,7 +158,7 @@ export function GameBoard({
             ciencia: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100', accent: 'bg-blue-600' },
             tech: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100', accent: 'bg-violet-600' },
             primario: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', accent: 'bg-emerald-600' },
-            publico: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', accent: 'bg-rose-600' },
+            legislativo: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', accent: 'bg-rose-600' },
             ciudadania: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', border: 'border-fuchsia-100', accent: 'bg-fuchsia-600' },
         };
         return colors[id] || colors.ciencia;
@@ -167,14 +178,12 @@ export function GameBoard({
         };
     });
 
-    // Calcular la fase visual (1-6=1, 7-12=2...)
     const visualPhase = Math.ceil(turnNumber / 6) || 1;
 
-    // Renderizado condicional según el modo de juego
     const renderBoard = () => {
         if (endData) {
             return (
-                <EndgameResults 
+                <EndgameResults
                     outcome={endData.outcome}
                     finalTemp={endData.temperature}
                     totalHeating={endData.totalHeating}
@@ -192,28 +201,29 @@ export function GameBoard({
             );
         }
 
-        // Lógica de visualización basada en isLocalGame
         if (isLocalGame) {
             return (
-                <LocalDisplayBoard 
-                    sectors={sectors} 
-                    challenge={currentChallenge} 
-                    roomCode={roomCode} 
-                    turnNumber={turnNumber} 
+                <LocalDisplayBoard
+                    sectors={sectors}
+                    challenge={currentChallenge}
+                    roomCode={roomCode}
+                    turnNumber={turnNumber}
                     onNextChallenge={nextChallenge}
                     visualPhase={visualPhase}
                     myParticipantId={myParticipantId}
                     myPlayerName={myPlayerName}
+                    gameMode={gameMode}
+                    setGameState={setGameState} // Exponemos la mutación al tablero local
                 />
             );
         } else {
             return (
-                <OnlinePlayerBoard 
-                    sectors={sectors} 
-                    challenge={currentChallenge} 
-                    roomCode={roomCode} 
-                    myRoles={myRoles} 
-                    myParticipantId={myParticipantId} 
+                <OnlinePlayerBoard
+                    sectors={sectors}
+                    challenge={currentChallenge}
+                    roomCode={roomCode}
+                    myRoles={myRoles}
+                    myParticipantId={myParticipantId}
                     myPlayerName={myPlayerName}
                     isHost={isHost}
                     turnNumber={serverGameState?.turnNumber || parentTurnNumber}
@@ -229,4 +239,4 @@ export function GameBoard({
             {renderBoard()}
         </GameProvider>
     );
-};
+}

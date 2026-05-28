@@ -9,13 +9,17 @@ class RolesSeeder extends Seeder
 {
     public function run(): void
     {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('roles')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
         DB::table('roles')->insert([
-            ['nombre' => 'Industria Textil', 'slug' => 'textil',     'habilidades' => 'Reduce el impacto de cartas de Ropa. Puede reciclar materiales.'],
-            ['nombre' => 'Ciencia e I+D',    'slug' => 'ciencia',    'habilidades' => 'Puede neutralizar una carta negativa por turno. Bonus en cartas de Datos.'],
-            ['nombre' => 'Gigantes Tech',    'slug' => 'tech',       'habilidades' => 'Gestiona cartas de Datos y Energía con ventaja. Puede compartir recursos.'],
-            ['nombre' => 'Sector Primario',  'slug' => 'primario',   'habilidades' => 'Reduce impacto en cartas de Agua. Genera eco-fichas extra al acertar.'],
-            ['nombre' => 'Sector Público',   'slug' => 'publico',    'habilidades' => 'Puede bloquear una carta de evento por partida. Bonus en coordinación.'],
-            ['nombre' => 'Ciudadanía',       'slug' => 'ciudadania', 'habilidades' => 'Voto extra en decisiones grupales. Puede redistribuir eco-fichas.'],
+            ['nombre' => 'Industria Textil', 'slug' => 'textil',     'habilidades' => 'Pasiva: Reduce coste ET en Ropa. Activa: Cerrar el Ciclo (Descarta y saca reto nuevo).'],
+            ['nombre' => 'Ciencia e I+D',    'slug' => 'ciencia',    'habilidades' => 'Pasiva: Cartas sin bloqueo. Activa: Salto Tecnológico (Auto-acierto).'],
+            ['nombre' => 'EcoTech',          'slug' => 'tech',       'habilidades' => 'Pasiva: Ve eventos futuros. Activa: Algoritmo de Eficiencia (Mitiga 50% de evento).'],
+            ['nombre' => 'Sector Primario',  'slug' => 'primario',   'habilidades' => 'Pasiva: Escudo automático. Activa: Restauración de Ecosistemas (Baja temp global).'],
+            ['nombre' => 'Sector Legislativo',   'slug' => 'legislativo',    'habilidades' => 'Pasiva: Impuestos verdes (+1 ET). Activa: Ley de Emergencia (Bloquea evento).'],
+            ['nombre' => 'Ciudadanía',       'slug' => 'ciudadania', 'habilidades' => 'Pasiva: +2 ET extra por turno. Activa: Presión Social (Elimina 50% de errores).'],
         ]);
     }
 }

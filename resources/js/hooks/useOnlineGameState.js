@@ -6,7 +6,7 @@ import axios from 'axios';
 /**
  * Hook para centralizar la lógica de estado y sincronización multijugador
  */
-export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sectors, myParticipantId, initialTimeLeft = 30) {
+export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sectors, myParticipantId, initialTimeLeft = 45) {
     const { setTimeLeft, setIsPaused } = useGame();
     
     // Sincronizar tiempo inicial al montar (para late-joiners)
@@ -51,9 +51,9 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
     const activeParticipanteId = activeSectorInChallenge?.participanteId;
     
     const myAssignedRoles = useMemo(() => {
-        if (!sectors || sectors.length === 0) return [];
+        if (!liveSectors || liveSectors.length === 0) return [];
         
-        return sectors.filter(s => {
+        return liveSectors.filter(s => {
             // Prioridad absoluta al ID único para evitar colisiones de nombres (admin vs admin)
             if (s.participanteId && myParticipantId) {
                 return Number(s.participanteId) === Number(myParticipantId);
@@ -70,7 +70,7 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             
             return sName === myName || (myName === 'anfitrion' && sName === 'anfitrion');
         });
-    }, [sectors, myParticipantId, myPlayerName]);
+    }, [liveSectors, myParticipantId, myPlayerName]);
 
     const isMyTurn = useMemo(() => {
         // 1. Verificación por ID de participante (más segura)
@@ -234,6 +234,28 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         }
     };
 
+    const useAbility = async (roleSlug) => {
+        if (isSending || !myParticipantId) return;
+        setIsSending(true);
+        
+        try {
+            const response = await axios.post(`/api/game/${cleanRoomCode}/habilidad`, {
+                participante_id: myParticipantId,
+                slug: roleSlug
+            });
+            
+            console.log(`[useOnlineGameState] Habilidad ${roleSlug} activada con éxito:`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`[useOnlineGameState] Error al activar habilidad ${roleSlug}:`, error);
+            const msg = error.response?.data?.message || "Error al activar la habilidad.";
+            alert(msg);
+            throw error;
+        } finally {
+            setIsSending(false);
+        }
+    };
+
     const resetMando = () => {
         setVotedChallengeId(null);
         setLastFeedback(null);
@@ -257,8 +279,10 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
         sendChatMessage,
         handleVote,
         handleProposal,
+        useAbility,
         resetMando,
         isActivePlayerInactive: activeSectorInChallenge?.isInactive || false,
-        isActuallyHost
+        isActuallyHost,
+        is5050Active: currentChallenge?.is5050Active || false
     };
 }

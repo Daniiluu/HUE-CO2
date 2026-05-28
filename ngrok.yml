@@ -1,8 +1,0 @@
-authtoken: YOUR_AUTH_TOKEN_IF_NEEDED
-tunnels:
-  app:
-    proto: http
-    addr: 8000
-  reverb:
-    proto: http
-    addr: 8010

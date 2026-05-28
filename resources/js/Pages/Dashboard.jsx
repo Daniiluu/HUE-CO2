@@ -1,9 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import { PlusCircle, Gamepad2, ArrowRight } from 'lucide-react';
+import { PlusCircle, Gamepad2, ArrowRight, X, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import MatchHistory from '@/Components/Dashboard/MatchHistory';
+import EndgameResults from '../Components/Endgame/EndgameResults';
 
 // Importación de componentes modulares
 import { HostAuthView } from '../Components/GuestPortal/HostAuthView';
@@ -12,7 +13,7 @@ import { LobbyView } from '../Components/GuestPortal/LobbyView';
 import axios from 'axios';
 
 export default function Dashboard() {
-    const { auth } = usePage().props;
+    const { auth, history } = usePage().props;
     const [view, setView] = useState('main'); // main, host_auth, select_mode, lobby
     const [mode, setMode] = useState(null);
     const [nickname, setNickname] = useState(auth.user?.username || auth.user?.name || '');
@@ -22,6 +23,21 @@ export default function Dashboard() {
     const [isCreating, setIsCreating] = useState(false);
     const [isLocal, setIsLocal] = useState(false);
     const [myParticipantId, setMyParticipantId] = useState(null);
+    const [selectedGameDetails, setSelectedGameDetails] = useState(null);
+    const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+    const handleViewDetails = async (id) => {
+        try {
+            setIsLoadingDetails(true);
+            const response = await axios.get(`/juego/${id}/detalles-historial`);
+            setSelectedGameDetails(response.data);
+        } catch (error) {
+            console.error('[HUE-CO2] Error al cargar los detalles del historial:', error);
+            alert('No se pudieron recuperar los detalles de la partida.');
+        } finally {
+            setIsLoadingDetails(false);
+        }
+    };
 
     const navigateTo = (newView) => {
         setView(newView);
@@ -195,6 +211,8 @@ export default function Dashboard() {
                     {view === 'select_mode' && (
                         <ModeSelectionView 
                             key="select"
+                            hideSolo={!isLocal}
+                            hideClass={!isLocal}
                             onBack={() => navigateTo('host_auth')}
                             onSelectMode={handleSelectMode}
                             isLoading={isCreating}
@@ -216,7 +234,73 @@ export default function Dashboard() {
                 </AnimatePresence>
 
                 {/* Historial de Partidas - Solo se muestra en el menú principal */}
-                {view === 'main' && <MatchHistory />}
+                {view === 'main' && (
+                    <MatchHistory 
+                        history={history} 
+                        onViewDetails={handleViewDetails} 
+                    />
+                )}
+
+                {/* Modal para ver resultados detallados de partidas históricas */}
+                <AnimatePresence>
+                    {selectedGameDetails && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+                        >
+                            <motion.div 
+                                initial={{ scale: 0.95, y: 15 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 15 }}
+                                className="bg-[#fafaf9] rounded-[3rem] w-full max-w-7xl max-h-[90vh] overflow-y-auto relative shadow-2xl border-4 border-[#e7e5e4] flex flex-col"
+                            >
+                                <button 
+                                    onClick={() => setSelectedGameDetails(null)} 
+                                    className="absolute top-6 right-6 z-[60] bg-white border-4 border-[#e7e5e4] text-[#1c1917] p-3 rounded-2xl hover:border-red-500 hover:text-red-500 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                                
+                                <div className="flex-1 overflow-y-auto">
+                                    <EndgameResults 
+                                        outcome={selectedGameDetails.outcome}
+                                        finalTemp={selectedGameDetails.temperature}
+                                        totalHeating={selectedGameDetails.totalHeating}
+                                        totalReduction={selectedGameDetails.totalReduction}
+                                        playerStats={selectedGameDetails.sectors?.map((s, index) => ({
+                                            id: s.id || `sector_${index}`,
+                                            name: s.playerName || 'Jugador',
+                                            role: s.role || 'Coordinador',
+                                            stat: `${s.points ?? 0} Puntos`,
+                                            label: `${s.tokens ?? 0} EcoFichas`,
+                                            isMVP: s.points > 0 && s.points === Math.max(...selectedGameDetails.sectors.map(sec => sec.points))
+                                        }))}
+                                        onBackToPortal={() => setSelectedGameDetails(null)}
+                                    />
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Spinner de Carga de Detalles */}
+                <AnimatePresence>
+                    {isLoadingDetails && (
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[100] bg-stone-900/40 backdrop-blur-xs flex items-center justify-center pointer-events-auto"
+                        >
+                            <div className="bg-white border-4 border-stone-200 p-6 rounded-3xl flex items-center gap-4 shadow-xl">
+                                <Loader2 className="w-8 h-8 text-[#87AF4C] animate-spin" />
+                                <span className="font-black text-[#1c1917] tracking-tight text-lg uppercase">Cargando resultados...</span>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Footer */}
                 <div className="mt-16 flex items-center justify-center gap-4 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">

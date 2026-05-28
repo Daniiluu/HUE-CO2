@@ -9,6 +9,10 @@ class AnillosSeeder extends Seeder
 {
     public function run(): void
     {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('anillos')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
         DB::table('anillos')->insert([
             ['nombre' => 'Agua', 'orden' => 1],
             ['nombre' => 'Energía', 'orden' => 2],
