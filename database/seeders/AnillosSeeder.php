@@ -9,9 +9,20 @@ class AnillosSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        $driver = DB::getDriverName();
+        if ($driver === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        } elseif ($driver === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = OFF;');
+        }
+
         DB::table('anillos')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        if ($driver === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        } elseif ($driver === 'sqlite') {
+            DB::statement('PRAGMA foreign_keys = ON;');
+        }
 
         DB::table('anillos')->insert([
             ['nombre' => 'Agua', 'orden' => 1],
