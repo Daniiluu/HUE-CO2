@@ -194,10 +194,10 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
         // Hacer un fetch inicial inmediatamente
         fetchState();
 
-        // CONTROL DE REFRESCO RADICAL PARA VAPORT:
+        // CONTROL DE REFRESCO OPTIMIZADO PARA ENTORNOS DE PRODUCCIÓN (Como Railway):
         // Si el WebSocket está conectado, el polling se dilata a 45s actuando como un latido pasivo de seguridad.
-        // Si está desconectado, subimos el delay de 5s a 12s para dar tiempo físico estable a que React renderice las pantallas.
-        const pollIntervalMs = isConnected ? 45000 : 12000;
+        // Si está desconectado, bajamos el delay a 2s (2000ms) para garantizar una sincronización fluida y en tiempo real sin latencias.
+        const pollIntervalMs = isConnected ? 45000 : 2000;
 
         const interval = setInterval(() => {
             fetchState();

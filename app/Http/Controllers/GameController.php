@@ -239,7 +239,7 @@ class GameController extends Controller
                 'temperature' => $juego->temperatura,
                 'totalHeating' => $juego->total_calentamiento,
                 'totalReduction' => $juego->total_reduccion,
-                'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
+                'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_result', 'incorrect') === 'correct',
                 'outcome' => ($juego->estado === 'ended') ? $this->gameFlow->calculateOutcome($juego) : null,
                 'hostId' => DB::table('juego_participante')->where('juego_id', $juego->juego_id)->orderBy('juego_jugador_id', 'asc')->value('participante_id')
             ]
@@ -412,7 +412,7 @@ class GameController extends Controller
             'totalHeating' => $juego->total_calentamiento,
             'totalReduction' => $juego->total_reduccion,
             'turnNumber'  => $juego->current_turn,
-            'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_correct', false),
+            'lastTurnCorrect' => \Illuminate\Support\Facades\Cache::get('juego_'.$juego->juego_id.'_last_result', 'incorrect') === 'correct',
             'outcome'     => ($juego->estado === 'ended') ? $this->gameFlow->calculateOutcome($juego) : null,
             'hostId'      => $hostId
         ]);
