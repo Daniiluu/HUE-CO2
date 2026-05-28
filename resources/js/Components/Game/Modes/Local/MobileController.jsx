@@ -491,38 +491,54 @@ export default function MobileController({
                 )}
 
                 {/* ── Tipo SLIDER ── */}
-                {challengeType === 'slider' && (
-                    <>
-                        <p className="text-xs text-[#78716c] font-medium mb-5 leading-relaxed">
-                            {safeChallenge.description ?? 'Ajusta el valor de tu decisión.'}
-                        </p>
-                        <div className="text-center mb-5">
-                            <span className={`text-5xl font-black tabular-nums ${theme.text}`}>
-                                {sliderValue}
-                            </span>
-                            <span className={`text-lg font-black ${theme.text} ml-1`}>{safeChallenge.unit ?? '%'}</span>
-                        </div>
-                        <input
-                            type="range"
-                            min={safeChallenge.sliderMin ?? 0}
-                            max={safeChallenge.sliderMax ?? 100}
-                            step={safeChallenge.sliderStep ?? 5}
-                            value={sliderValue}
-                            onChange={(e) => setSliderValue(parseInt(e.target.value))}
-                            className="w-full h-3 bg-[#e7e5e4] rounded-full appearance-none cursor-pointer mb-2"
-                        />
-                        <div className="flex justify-between text-[9px] font-black text-[#a8a29e] uppercase tracking-widest mb-4">
-                            <span>{safeChallenge.sliderMin ?? 0}</span>
-                            <span>{safeChallenge.sliderMax ?? 100}</span>
-                        </div>
-                        <button
-                            onClick={() => handleVote(sliderValue)}
-                            className={`w-full py-3 rounded-2xl font-black text-white flex items-center justify-center gap-2 active:scale-95 transition-all ${theme.btn}`}
-                        >
-                            <Zap size={16} /> Confirmar Decisión
-                        </button>
-                    </>
-                )}
+                {challengeType === 'slider' && (() => {
+                    const COLOR_HEX_MAP = {
+                        textil: '#f59e0b',     // amber-500
+                        ciencia: '#06b6d4',    // cyan-500
+                        tech: '#6366f1',       // indigo-500
+                        primario: '#10b981',   // emerald-500
+                        legislativo: '#f43f5e', // rose-500
+                        ciudadania: '#8b5cf6', // violet-500
+                    };
+                    const activeColor = COLOR_HEX_MAP[primaryRole?.id] ?? '#8b5cf6';
+                    const sliderMinVal = safeChallenge.sliderMin ?? 0;
+                    const sliderMaxVal = safeChallenge.sliderMax ?? 100;
+                    const percentage = sliderMaxVal > sliderMinVal ? Math.min(100, Math.max(0, ((sliderValue - sliderMinVal) / (sliderMaxVal - sliderMinVal)) * 100)) : 0;
+
+                    return (
+                        <>
+                            <p className="text-xs text-[#78716c] font-medium mb-5 leading-relaxed">
+                                {safeChallenge.description ?? 'Ajusta el valor de tu decisión.'}
+                            </p>
+                            <div className="text-center mb-5">
+                                <span className={`text-5xl font-black tabular-nums ${theme.text}`}>
+                                    {sliderValue}
+                                </span>
+                                <span className={`text-lg font-black ${theme.text} ml-1`}>{safeChallenge.unit ?? '%'}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min={sliderMinVal}
+                                max={sliderMaxVal}
+                                step={safeChallenge.sliderStep ?? 5}
+                                value={sliderValue}
+                                onChange={(e) => setSliderValue(parseInt(e.target.value))}
+                                className="w-full h-3 bg-[#e7e5e4] rounded-full appearance-none cursor-pointer mb-2 transition-all"
+                                style={{ background: `linear-gradient(to right, ${activeColor} ${percentage}%, #e7e5e4 ${percentage}%)` }}
+                            />
+                            <div className="flex justify-between text-[9px] font-black text-[#a8a29e] uppercase tracking-widest mb-4">
+                                <span>{sliderMinVal}</span>
+                                <span>{sliderMaxVal}</span>
+                            </div>
+                            <button
+                                onClick={() => handleVote(sliderValue)}
+                                className={`w-full py-3 rounded-2xl font-black text-white flex items-center justify-center gap-2 active:scale-95 transition-all ${theme.btn}`}
+                            >
+                                <Zap size={16} /> Confirmar Decisión
+                            </button>
+                        </>
+                    );
+                })()}
 
                 {/* ── Tipo VALIDATE ── */}
                 {challengeType === 'validate' && (

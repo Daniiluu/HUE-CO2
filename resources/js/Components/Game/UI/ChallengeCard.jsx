@@ -42,6 +42,7 @@ export default function ChallengeCard({
 }) {
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [proposalText, setProposalText] = useState('');
+    const [sliderVal, setSliderVal] = useState(50);
 
     // Resetear estados internos cuando cambia el reto para evitar "heredar" texto de turnos anteriores
     React.useEffect(() => {
@@ -52,9 +53,8 @@ export default function ChallengeCard({
         if (challenge?.type === 'slider') {
             const min = challenge.sliderMin ?? 0;
             const max = challenge.sliderMax ?? 100;
-            if (intensity < min || intensity > max) {
-                setIntensity?.(Math.floor((min + max) / 2));
-            }
+            const defaultVal = challenge.sliderDefault ?? Math.floor((min + max) / 2);
+            setSliderVal(defaultVal);
         }
     }, [challenge?.id]);
 
@@ -222,53 +222,60 @@ export default function ChallengeCard({
     );
 
 
-    const renderSlider = () => (
-        <div className="flex flex-col flex-1 items-center justify-center pb-4">
-            <motion.div
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-                key={intensity}
-                className="relative mt-auto mb-8"
-            >
-                <div className={`${c.base} text-white font-black text-5xl lg:text-6xl px-10 py-5 rounded-[2rem] shadow-[0_6px_0_0_rgba(0,0,0,0.15)]`}>
-                    {intensity}{challenge.unit ?? '%'}
-                </div>
-                <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 ${c.base} rotate-45`} />
-            </motion.div>
+    const renderSlider = () => {
+        const min = challenge.sliderMin ?? 0;
+        const max = challenge.sliderMax ?? 100;
+        const step = challenge.sliderStep ?? 1;
+        const percentage = max > min ? Math.min(100, Math.max(0, ((sliderVal - min) / (max - min)) * 100)) : 0;
 
-            {!readOnly ? (
-                <div className="w-full mb-6">
-                    <input
-                        type="range"
-                        min={challenge.sliderMin ?? 0}
-                        max={challenge.sliderMax ?? 100}
-                        step={challenge.sliderStep ?? 1}
-                        value={intensity}
-                        onChange={(e) => setIntensity(parseInt(e.target.value))}
-                        className="w-full h-4 bg-slate-200 rounded-full appearance-none cursor-pointer transition-all"
-                        style={{ background: `linear-gradient(to right, ${c.sliderColor} ${intensity}%, #e2e8f0 ${intensity}%)` }}
-                    />
-                    <div className="flex justify-between mt-3 px-1 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-                        <span>MÍN: {challenge.sliderMin ?? 0}</span>
-                        <span>MÁX: {challenge.sliderMax ?? 100}</span>
-                    </div>
-                </div>
-            ) : (
-                <p className="text-slate-400 font-medium text-center uppercase tracking-widest text-[10px] mt-4">
-                    El jugador está evaluando el impacto...
-                </p>
-            )}
-
-            {!readOnly && (
-                <button
-                    onClick={() => onApply?.(intensity)}
-                    className={`w-full py-4 ${c.base} text-white rounded-xl font-bold uppercase tracking-widest shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 mt-auto`}
+        return (
+            <div className="flex flex-col flex-1 items-center justify-center pb-4">
+                <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    key={sliderVal}
+                    className="relative mt-auto mb-8"
                 >
-                    Aplicar Medida {React.cloneElement(ringConfig.icon, { className: "w-5 h-5 text-yellow-300" })}
-                </button>
-            )}
-        </div>
-    );
+                    <div className={`${c.base} text-white font-black text-5xl lg:text-6xl px-10 py-5 rounded-[2rem] shadow-[0_6px_0_0_rgba(0,0,0,0.15)]`}>
+                        {sliderVal}{challenge.unit ?? '%'}
+                    </div>
+                    <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 ${c.base} rotate-45`} />
+                </motion.div>
+
+                {!readOnly ? (
+                    <div className="w-full mb-6">
+                        <input
+                            type="range"
+                            min={min}
+                            max={max}
+                            step={step}
+                            value={sliderVal}
+                            onChange={(e) => setSliderVal(parseInt(e.target.value))}
+                            className="w-full h-4 bg-slate-200 rounded-full appearance-none cursor-pointer transition-all"
+                            style={{ background: `linear-gradient(to right, ${c.sliderColor} ${percentage}%, #e2e8f0 ${percentage}%)` }}
+                        />
+                        <div className="flex justify-between mt-3 px-1 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+                            <span>MÍN: {min}</span>
+                            <span>MÁX: {max}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-slate-400 font-medium text-center uppercase tracking-widest text-[10px] mt-4">
+                        El jugador está evaluando el impacto...
+                    </p>
+                )}
+
+                {!readOnly && (
+                    <button
+                        onClick={() => onApply?.(sliderVal)}
+                        className={`w-full py-4 ${c.base} text-white rounded-xl font-bold uppercase tracking-widest shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 mt-auto`}
+                    >
+                        Aplicar Medida {React.cloneElement(ringConfig.icon, { className: "w-5 h-5 text-yellow-300" })}
+                    </button>
+                )}
+            </div>
+        );
+    };
 
     const renderValidate = () => (
         <div className="flex flex-col flex-1 h-full pb-2">
