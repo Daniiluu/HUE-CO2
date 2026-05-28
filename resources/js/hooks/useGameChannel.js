@@ -134,11 +134,7 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                             return prev;
                         }
 
-                        // SEGURO 2: Si el Host ya avanzó localmente a 'challenge', 
-                        // ignorar respuestas residuales de red que digan 'results' del mismo turno
-                        if (prev && prev.state === 'challenge' && res.data.state === 'results' && res.data.turnNumber === prev.turnNumber) {
-                            return prev;
-                        }
+
 
                         // Comprobar si los datos críticos han cambiado
                         const hasChanged = !prev ||
