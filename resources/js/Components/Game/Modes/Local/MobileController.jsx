@@ -158,16 +158,19 @@ export default function MobileController({
         if (!serverGameState) return;
         setLocalGameState(serverGameState.state);
         if (serverGameState.challenge && typeof serverGameState.challenge === 'object' && Object.keys(serverGameState.challenge).length > 0) {
-            setCurrentChallenge(serverGameState.challenge);
-            setSelectedAnswer(null);
-            
-            const min = serverGameState.challenge.sliderMin ?? 0;
-            const max = serverGameState.challenge.sliderMax ?? 100;
-            setSliderValue(Math.floor((min + max) / 2));
-            
-            setProposalText('');
+            const isNewChallenge = serverGameState.challenge.id !== currentChallenge?.id;
+            if (isNewChallenge) {
+                setCurrentChallenge(serverGameState.challenge);
+                setSelectedAnswer(null);
+                
+                const min = serverGameState.challenge.sliderMin ?? 0;
+                const max = serverGameState.challenge.sliderMax ?? 100;
+                setSliderValue(Math.floor((min + max) / 2));
+                
+                setProposalText('');
+            }
         }
-    }, [serverGameState]);
+    }, [serverGameState, currentChallenge?.id]);
 
     // NUEVO: Cuando llega una propuesta de un compañero, cambiar a modo validación
     React.useEffect(() => {
@@ -699,12 +702,14 @@ export default function MobileController({
                     >
                         <HeartHandshake className="w-5 h-5" /> Donar ET
                     </button>
-                    <button
-                        onClick={onChat}
-                        className="flex-1 bg-[#1c1917] text-white border-4 border-[#1c1917] py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
-                    >
-                        <Send className="w-5 h-5" /> Chat
-                    </button>
+                    {onChat && (
+                        <button
+                            onClick={onChat}
+                            className="flex-1 bg-[#1c1917] text-white border-4 border-[#1c1917] py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
+                        >
+                            <Send className="w-5 h-5" /> Chat
+                        </button>
+                    )}
                 </footer>
             </div>
         </div>
