@@ -45,14 +45,14 @@ Route::get('/dashboard', function () {
             'juegos.juego_id as id',
             'juegos.updated_at as date',
             'juegos.temperatura as finalTemp',
-            \DB::raw('GROUP_CONCAT(DISTINCT roles.nombre ORDER BY roles.rol_id ASC SEPARATOR ", ") as role')
+            'roles.nombre as role_name'
         )
-        ->groupBy('juegos.juego_id', 'juegos.updated_at', 'juegos.temperatura')
         ->orderBy('juegos.updated_at', 'desc')
-        ->limit(5)
         ->get();
 
-    $formattedHistory = $history->map(function ($row) {
+    $formattedHistory = $history->groupBy('id')->map(function ($items) {
+        $row = $items->first();
+        
         $date = \Carbon\Carbon::parse($row->date);
         $months = [
             1 => 'Ene', 2 => 'Feb', 3 => 'Mar', 4 => 'Abr', 5 => 'May', 6 => 'Jun',
@@ -69,14 +69,19 @@ Route::get('/dashboard', function () {
             $outcome = 'victory';
         }
 
+        $rolesList = $items->pluck('role_name')
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
         return [
             'id' => (string) $row->id,
             'date' => $dateStr,
             'outcome' => $outcome,
             'finalTemp' => $temp,
-            'role' => $row->role ?? 'Coordinador',
+            'role' => $rolesList ?: 'Coordinador',
         ];
-    });
+    })->values()->take(5);
 
     return Inertia::render('Dashboard', [
         'history' => $formattedHistory
