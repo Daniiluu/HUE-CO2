@@ -156,9 +156,19 @@ export default function MobileController({
     // Cuando el servidor cambia el estado del juego, actualizar nuestra vista
     React.useEffect(() => {
         if (!serverGameState) return;
-        setLocalGameState(serverGameState.state);
+        
+        const isNewChallenge = serverGameState.challenge && 
+                               typeof serverGameState.challenge === 'object' && 
+                               serverGameState.challenge.id !== currentChallenge?.id;
+
+        // Si ya votamos, no volvemos a 'challenge' a menos que sea un nuevo reto
+        if (localGameState === 'voted' && serverGameState.state === 'challenge' && !isNewChallenge) {
+            // Mantenerse en 'voted'
+        } else {
+            setLocalGameState(serverGameState.state);
+        }
+
         if (serverGameState.challenge && typeof serverGameState.challenge === 'object' && Object.keys(serverGameState.challenge).length > 0) {
-            const isNewChallenge = serverGameState.challenge.id !== currentChallenge?.id;
             if (isNewChallenge) {
                 setCurrentChallenge(serverGameState.challenge);
                 setSelectedAnswer(null);
@@ -170,7 +180,7 @@ export default function MobileController({
                 setProposalText('');
             }
         }
-    }, [serverGameState, currentChallenge?.id]);
+    }, [serverGameState, currentChallenge?.id, localGameState]);
 
     // NUEVO: Cuando llega una propuesta de un compañero, cambiar a modo validación
     React.useEffect(() => {
