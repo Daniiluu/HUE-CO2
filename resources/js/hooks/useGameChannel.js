@@ -159,7 +159,11 @@ export function useGameChannel(roomCode, sectorId, playerName, participanteId = 
                                 temperature: res.data.temperature || 0,
                                 totalHeating: res.data.totalHeating || 0,
                                 totalReduction: res.data.totalReduction || 0,
+                                // Normalizar ambas naming conventions:
+                                // El polling HTTP devuelve lastTurnCorrect (boolean)
+                                // El WebSocket devuelve lastTurnResult (string)
                                 lastTurnCorrect: res.data.lastTurnCorrect || false,
+                                lastTurnResult: res.data.lastTurnCorrect ? 'correct' : 'incorrect',
                                 outcome: res.data.outcome || null,
                                 hostId: res.data.hostId || null,
                                 timeLeft: res.data.timeLeft

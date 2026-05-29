@@ -186,13 +186,21 @@ export default function LocalDisplayBoard({
     }, [votes, activeChallenge, localFeedback, isFreeQuestion, activeSectorId, remoteState?.state]);
 
     // Fallback de seguridad mediante Sockets/Polling
+    // NOTA: El evento WebSocket (GameStateChanged) manda 'lastTurnResult' (string: 'correct'|'incorrect')
+    //       mientras que el Polling HTTP manda 'lastTurnCorrect' (boolean). Normalizamos ambos.
     useEffect(() => {
         if (remoteState?.state === 'results' && localFeedback === null && dismissedChallengeRef.current !== activeChallenge?.id) {
-            const isCorrect = remoteState?.lastTurnCorrect ?? false;
+            // Soportar ambas naming conventions: WebSocket (lastTurnResult) y Polling (lastTurnCorrect)
+            let isCorrect = false;
+            if (remoteState?.lastTurnResult !== undefined) {
+                isCorrect = remoteState.lastTurnResult === 'correct';
+            } else if (remoteState?.lastTurnCorrect !== undefined) {
+                isCorrect = !!remoteState.lastTurnCorrect;
+            }
             setLocalFeedback(isCorrect ? 'correct' : 'incorrect');
             if (isFreeQuestion) setFreePhase(null);
         }
-    }, [remoteState?.state, remoteState?.lastTurnCorrect, localFeedback, isFreeQuestion, activeChallenge?.id]);
+    }, [remoteState?.state, remoteState?.lastTurnResult, remoteState?.lastTurnCorrect, localFeedback, isFreeQuestion, activeChallenge?.id]);
 
     const handleAdvance = async () => {
         if (advancingRef.current) return;

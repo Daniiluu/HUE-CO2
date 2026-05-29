@@ -183,15 +183,9 @@ export function useOnlineGameState(roomCode, myPlayerName, initialChallenge, sec
             setVotedChallengeId(currentChallenge?.id);
             setLastFeedback(response.data.is_correct);
 
-            // Si es online puro, avanzamos el turno SOLO si NO es una pregunta libre.
-            // Para preguntas free/open, el avance ocurre DESPUÉS de que el grupo vote (en la fase validate).
-            const tipoPregunta = currentChallenge?.type;
-            const esPreguntaLibre = tipoPregunta === 'free' || tipoPregunta === 'open';
-            if (!roomCode.startsWith('LOCAL_') && !esPreguntaLibre) {
-                setTimeout(() => {
-                    axios.post(`/api/game/${cleanRoomCode}/advance`).catch(e => console.error(e));
-                }, 2500);
-            }
+            // NOTA: El advance automático ya está gestionado por el efecto de estado en línea 119-129.
+            // No volvemos a llamar a /advance aquí para evitar el doble avance cuando el backend ya
+            // llamó a transitionToResults() desde dentro del endpoint /vote.
 
             return response.data;
         } catch (error) {

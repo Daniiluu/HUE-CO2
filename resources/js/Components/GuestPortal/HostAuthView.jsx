@@ -58,7 +58,7 @@ export function HostAuthView({ onBack, onSelectMode, isGuest = true, initialNick
                             <User className="text-[#87AF4C] w-6 h-6" />
                         </div>
                         <div>
-                            <div className="font-black text-[#1c1917]">Multijugador Local</div>
+                            <div className="font-black text-[#1c1917]">Modo Local</div>
                             <div className="text-[10px] text-[#87AF4C] font-bold uppercase tracking-widest mt-1">Pantalla compartida + Móviles</div>
                         </div>
                     </div>
